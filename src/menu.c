@@ -19,19 +19,24 @@ typedef enum {
     OPCION_SUBMENU
 } opcion_tipo_t;
 
+typedef struct estilo{
+    size_t id;
+    menu_mostrar_t estilo;
+}estilo_t;
+
 typedef struct opcion {
     char tecla;
     char *nombre;
     opcion_tipo_t tipo;
-    menu_accion_t accion;   // si tipo == ACCION
-    struct menu *submenu;   // si tipo == SUBMENU
+    menu_accion_t accion;
+    struct menu *submenu;
 } opcion_t;
 
 struct menu {
     char *titulo;
-    hash_t *opciones;       // clave: char[2] -> valor: opcion_t*
-    menu_tipo_t tipo;       // RAIZ o SUBMENU
-    menu_mostrar_t* estilos;
+    hash_t *opciones;
+    menu_tipo_t tipo;
+    estilo_t* estilos;
     size_t cant_estilos;
 };
 
@@ -39,8 +44,7 @@ struct menu {
 typedef struct {
     menu_t *menu_actual;
     pila_t *stack_menus;
-    menu_mostrar_t estilo_actual;
-    size_t indice_estilo_actual;
+    estilo_t estilo_actual;
     size_t cant_estilos;
     void *user_data;
     bool salir;
@@ -50,10 +54,22 @@ typedef struct estilo_ctx{
     menu_mostrar_t estilo;
 }estilo_ctx_t;
 
+/*
+    Pre: El nombre no debe ser NULL.
+    
+    Post: Imprime la opcion por pantalla.
+*/
 void mostrar_estilo_default(char tecla, char *nombre){
     printf ("%c - %s\n",tecla,nombre);
 }
 
+/*
+    Pre: El titulo pasado por parametro no debe ser NULL.
+    
+    Post: Reserva y asigna en memoria los campos
+          para un menu_t y lo devuelve.
+          Devuelve NULL en caso de error.
+*/
 menu_t *menu_crear(const char *titulo, menu_tipo_t tipo, menu_mostrar_t estilo){
     menu_t* m=calloc(1,sizeof(menu_t));
     if (!m) return NULL;
@@ -65,12 +81,13 @@ menu_t *menu_crear(const char *titulo, menu_tipo_t tipo, menu_mostrar_t estilo){
     }
     m->tipo=tipo;
     if (tipo == MENU_TIPO_RAIZ){
-        m->estilos=calloc(1,sizeof(menu_mostrar_t));
+        m->estilos=calloc(1,sizeof(estilo_t));
         if (!m->estilos){
             free(m->titulo);
             free(m);
         }
-        m->estilos[0]=estilo ? estilo : mostrar_estilo_default;
+        m->estilos[0].estilo=estilo ? estilo : mostrar_estilo_default;
+        m->estilos[0].id=0;
         m->cant_estilos++;
     }
 
@@ -84,6 +101,11 @@ menu_t *menu_crear_base(const char *titulo, menu_mostrar_t estilo){
     return m;
 }
 
+/*
+    Pre: La opcion pasada por parametro no debe ser NULL.
+
+    Post: Libera la memoria reservada para una opcion.
+*/
 void menu_destruir_opcion(void *_op){
     opcion_t *op=_op;
 
@@ -91,6 +113,12 @@ void menu_destruir_opcion(void *_op){
     free(op);
 }
 
+/*
+    Pre: -
+
+    Post: Libera toda la memoria reservada
+          para un menu_t.
+*/
 void menu_destruir_submenu(menu_t *menu){
     if (!menu || menu->tipo != MENU_TIPO_SUBMENU){
         return;
@@ -103,6 +131,13 @@ void menu_destruir_submenu(menu_t *menu){
     free(menu);
 }
 
+/*
+    Pre: -
+
+    Post: Agrega una opcion al menu pasado por parametro.
+          Devuelve true en caso de funcionar correctamente
+          Devuelve false en caso de error.
+*/
 bool menu_agregar_opcion(menu_t *menu,opcion_t *op){
     if (!menu || !op) return false;
     char tecla[2]={op->tecla,'\0'};
@@ -115,6 +150,12 @@ bool menu_agregar_opcion(menu_t *menu,opcion_t *op){
     return hash_insertar(menu->opciones,tecla,op,NULL);
 }
 
+/*
+    Pre: -
+
+    Post: Devuelve true si existe una opcion con la tecla pasada por parametro.
+          Devuelve false en caso contrario.
+*/
 bool menu_existe_opcion(menu_t *m, char tecla){
     if (!m || !m->opciones || tecla == MENU_TECLA_SALIR || tecla == MENU_TECLA_VOLVER) return false;
 
@@ -122,6 +163,12 @@ bool menu_existe_opcion(menu_t *m, char tecla){
     return hash_contiene(m->opciones, tecla_s);
 }
 
+/*
+    Pre: -
+
+    Post: Devuelve un puntero a opcion_t reservado en memoria con los campos asignados a los parametros correspondientes.
+          Devuelve NULL en caso de error.
+*/
 opcion_t *opcion_crear(const char *nombre, char tecla, opcion_tipo_t tipo, menu_accion_t accion, menu_t* submenu){
     if (!nombre) return NULL;
 
@@ -202,30 +249,42 @@ bool menu_agregar_estilo(menu_t* menu, menu_mostrar_t estilo){
 
     size_t nueva_cant = menu->cant_estilos + 1;
 
-    menu_mostrar_t *estilos = realloc(menu->estilos,
-                                      nueva_cant * sizeof *estilos);
+    estilo_t *estilos = realloc(menu->estilos,
+                                      nueva_cant * sizeof(estilo_t));
     if (!estilos) return false;
 
     menu->estilos = estilos;
-    menu->estilos[menu->cant_estilos] = estilo;
+    menu->estilos[menu->cant_estilos].estilo = estilo;
+    menu->estilos[menu->cant_estilos].id=menu->cant_estilos;
     menu->cant_estilos = nueva_cant;
 
     return true;
 }
 
+/*
+    Pre: El parametro "run" no debe ser NULL.
+
+    Post: Actualiza el estilo actual a usar.
+*/
 void actualizar_estilo_actual(menu_running_t *run){
     menu_t *m=run->menu_actual;
     
-    if (run->indice_estilo_actual == run->cant_estilos-1){
-        run->indice_estilo_actual=0;
+    if (run->estilo_actual.id == run->cant_estilos-1){
+        run->estilo_actual.id=0;
     }else{    
-        run->indice_estilo_actual++;
+        run->estilo_actual.id++;
     }
 
-    run->estilo_actual=m->estilos[run->indice_estilo_actual];
+    run->estilo_actual.estilo=m->estilos[run->estilo_actual.id].estilo;
 }
 
-static bool manejar_tecla_especial(menu_running_t *run, char tecla){
+/*
+    Pre: El parametro "run" no debe ser NULL.
+
+    Post: Devuelve true si se puso realizar la accion especial.
+          Devuelve false en caso de error.
+*/
+bool manejar_tecla_especial(menu_running_t *run, char tecla){
     menu_t *m = run->menu_actual;
 
     if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_SALIR){
@@ -249,6 +308,12 @@ static bool manejar_tecla_especial(menu_running_t *run, char tecla){
     return false;                // no era tecla especial
 }
 
+/*
+    Pre: -
+
+    Post: Devuelve un puntero a la opcion correspondiente a la tecla pasada por parametro.
+          Devuelve NULL en caso de error. 
+*/
 opcion_t *menu_buscar_opcion(menu_t *m, char tecla){
     if (!m) return NULL;
 
@@ -258,22 +323,34 @@ opcion_t *menu_buscar_opcion(menu_t *m, char tecla){
     return op;
 }
 
-static void limpiar_pantalla(void){
+/*
+    Pre: -
+
+    Post: Limpia la pantalla de la terminal.
+*/
+void limpiar_pantalla(){
     printf(ANSI_CLEAR_SCREEN ANSI_CURSOR_HOME);
     fflush(stdout);
 }
 
-static void esperar_enter(void){
-    char aux[8];
+/*
+    Pre: -
+
+    Post: Espera el input de ENTER para salir de la accion correspondiente.
+*/
+void esperar_enter(){
+    int c;
 
     printf("\n\nPresione ENTER para volver al menú...");
     fflush(stdout);
-
-    if (!fgets(aux, sizeof(aux), stdin)) {
-        // EOF o error, no hacemos nada especial
-    }
+    while ((c = getchar()) != '\n' && c != EOF) {}
 }
 
+/*
+    Pre: El parametro "run" no debe ser NULL.
+
+    Post: Realiza la opcion relacionada a la tecla pasada por parametro.
+*/
 void manejar_opcion_normal(menu_running_t *run, char tecla){
     menu_t *m = run->menu_actual;
     opcion_t *op = menu_buscar_opcion(m, tecla);
@@ -296,22 +373,32 @@ void manejar_opcion_normal(menu_running_t *run, char tecla){
     }
 }
 
-static bool mostrar_opcion_cb(char *clave, void *valor, void *_ctx){
-    (void)clave;  // no la necesitamos
+/*
+    Pre: El ctx pasado por parametro no debe ser NULL.
+
+    Post: Devuelve true si se pudo imprimir la opcion.
+*/
+bool mostrar_opcion_cb(char *clave, void *valor, void *_ctx){
+    (void)clave;
     estilo_ctx_t *ctx=_ctx;
 
     opcion_t *op = valor;
-    if (!op) return true;  // seguir iterando igual
+    if (!op) return true;
 
     ctx->estilo(op->tecla,op->nombre);
-    return true;           // true = seguir iterando
+    return true;
 }
 
-static void menu_mostrar(menu_running_t *run){
+/*
+    Pre: -
+
+    Post: Muestra el menu del campo "menu_actual" del parametro.
+*/
+void menu_mostrar(menu_running_t *run){
     if (!run || !run->menu_actual) return;
 
     menu_t *m = run->menu_actual;
-    menu_mostrar_t estilo_actual= run->estilo_actual;
+    menu_mostrar_t estilo_actual= run->estilo_actual.estilo;
 
     printf("\n=== %s ===\n", m->titulo);
 
@@ -332,71 +419,53 @@ static void menu_mostrar(menu_running_t *run){
     fflush(stdout);
 }
 
-static void menu_correr(menu_running_t *run){
-    char linea[64];
+/*
+    Pre: -
 
-    while (!run->salir){
-        limpiar_pantalla();
-        menu_mostrar(run);
-
-        // Leer una línea completa del usuario
-        if (!fgets(linea, sizeof(linea), stdin)) {
-            // EOF o error de entrada: tomamos como "salir"
-            run->salir = true;
-        } else {
-            bool hay_tecla = (linea[0] != '\n' && linea[0] != '\0');
-
-            if (hay_tecla) {
-                char tecla = linea[0];
-                bool manejada = false;
-
-                // 1) teclas especiales (salir/volver)
-                if (!run->salir) {
-                    manejada = manejar_tecla_especial(run, tecla);
-                }
-
-                // 2) si no fue especial, la tratamos como opción normal
-                if (!run->salir && !manejada) {
-                    manejar_opcion_normal(run, tecla);
-                }
-            }
-        }
-    }
+    Post: Limpia el stdin restante.
+*/
+void limpiar_linea() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {}
 }
 
 /*
+    Pre: El parametro "run" no debe ser NULL.
+
+    Post: Ejecuta el menu por tiempo indefinido
+          hasta que el usuario decida salir.
+*/
 void menu_correr(menu_running_t *run){
-    while (!run->salir){
+    while (!run->salir) {
+
         limpiar_pantalla();
         menu_mostrar(run);
 
-        int c =getchar();
+        int c = getchar();
+        limpiar_linea();
 
-        bool hay_tecla = (c != '\n');
-        if (hay_tecla){
-            char tecla = (char)c;
-
-            bool manejada = false;
-            bool seguir_con_opcion = false;
-
-            if (!run->salir){
-                manejada = manejar_tecla_especial(run, tecla);
-            }
-            
-            if (!run->salir && !manejada) seguir_con_opcion = true;
-
-            if (seguir_con_opcion) manejar_opcion_normal(run, tecla);            
+        if (c == EOF) {
+            run->salir = true;
+            return;
         }
+
+        char tecla = (char)c;
+        
+        bool manejada = false;
+        if (!run->salir)
+            manejada = manejar_tecla_especial(run, tecla);
+
+        if (!run->salir && !manejada)
+            manejar_opcion_normal(run, tecla);
     }
 }
-*/
-void menu_ejecutar(menu_t *menu_base, void *user_data){
-    if (!menu_base) return;
+
+bool menu_ejecutar(menu_t *menu_base, void *user_data){
+    if (!menu_base) return false;
     
     menu_running_t run = {
         .menu_actual = menu_base,
-        .estilo_actual=menu_base->estilos[0],
-        .indice_estilo_actual=0,
+        .estilo_actual={.estilo=menu_base->estilos[0].estilo, .id=menu_base->estilos[0].id},
         .cant_estilos=menu_base->cant_estilos,
         .stack_menus = pila_crear(),
         .user_data   = user_data,
@@ -405,19 +474,25 @@ void menu_ejecutar(menu_t *menu_base, void *user_data){
 
     if (!run.stack_menus){
         // error creando la pila, no se puede correr el menú
-        return;
+        return false;
     }
 
     menu_correr(&run);
 
     pila_destruir(run.stack_menus);
+    
+    return true;
 }
 
+/*
+    Pre: -
+
+    Post: Libera toda la memoria reservada para un menu de tipo raiz.
+*/
 void destruir_menu_simple(menu_t *menu){
     if (!menu) return;
 
     if (menu->opciones){
-        // Destruye el hash y cada opcion_t
         hash_destruir_todo(menu->opciones, menu_destruir_opcion);
     }
 
@@ -430,7 +505,12 @@ void menu_destruir(menu_t *menu){
     destruir_menu_simple(menu);
 }
 
-static bool destruir_submenus_cb(char *clave, void *valor, void *ctx){
+/*
+    Pre: El valor pasado por parametro no debe ser NULL.
+
+    Post: Libera recursivamente la memoria de un menu y sus submenus
+*/
+bool destruir_submenus_cb(char *clave, void *valor, void *ctx){
     opcion_t *op = valor;
 
     // Si esta opción tiene un submenu, destruirlo recursivamente
@@ -444,11 +524,9 @@ static bool destruir_submenus_cb(char *clave, void *valor, void *ctx){
 void menu_destruir_todo(menu_t *menu_base){
     if (!menu_base) return;
 
-    // 1. Destruir recursivamente todos los submenús
     if (menu_base->opciones){
         hash_iterar(menu_base->opciones, destruir_submenus_cb, NULL);
     }
 
-    // 2. Destruir este menú (opciones + título + hash + estructura)
     destruir_menu_simple(menu_base);
 }
