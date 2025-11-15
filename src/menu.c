@@ -6,8 +6,6 @@
 #include "ansi.h"
 #include "ctype.h"
 
-#define ANSI_CURSOR_HOME "\x1b[H"
-
 #include <stdio.h>
 typedef enum {
     MENU_TIPO_RAIZ,
@@ -324,29 +322,6 @@ opcion_t *menu_buscar_opcion(menu_t *m, char tecla){
 }
 
 /*
-    Pre: -
-
-    Post: Limpia la pantalla de la terminal.
-*/
-void limpiar_pantalla(){
-    printf(ANSI_CLEAR_SCREEN ANSI_CURSOR_HOME);
-    fflush(stdout);
-}
-
-/*
-    Pre: -
-
-    Post: Espera el input de ENTER para salir de la accion correspondiente.
-*/
-void esperar_enter(){
-    int c;
-
-    printf("\n\nPresione ENTER para volver al menú...");
-    fflush(stdout);
-    while ((c = getchar()) != '\n' && c != EOF) {}
-}
-
-/*
     Pre: El parametro "run" no debe ser NULL.
 
     Post: Realiza la opcion relacionada a la tecla pasada por parametro.
@@ -420,16 +395,6 @@ void menu_mostrar(menu_running_t *run){
 }
 
 /*
-    Pre: -
-
-    Post: Limpia el stdin restante.
-*/
-void limpiar_linea() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF) {}
-}
-
-/*
     Pre: El parametro "run" no debe ser NULL.
 
     Post: Ejecuta el menu por tiempo indefinido
@@ -442,7 +407,7 @@ void menu_correr(menu_running_t *run){
         menu_mostrar(run);
 
         int c = getchar();
-        limpiar_linea();
+        limpiar_buffer();
 
         if (c == EOF) {
             run->salir = true;

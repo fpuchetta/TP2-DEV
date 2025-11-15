@@ -5,7 +5,7 @@ CC = gcc
 
 all: clean valgrind-alumno
 
-tp2: $(SRC) tp2.c
+tp2: $(SRC) main.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 valgrind-alumno: pruebas_alumno

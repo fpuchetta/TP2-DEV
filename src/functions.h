@@ -3,6 +3,8 @@
 #include "tp1.h"
 #include <string.h>
 
+#define ANSI_CURSOR_HOME "\x1b[H"
+
 #define MODO_LECTURA "r"
 #define MODO_ESCRITURA "w"
 
@@ -131,4 +133,26 @@ int interseccion_pokemones(tp1_t *tp, int argc, char **argv);
 		  Devuelve -1 en caso de error.
 */
 int diferencia_pokemones(tp1_t *tp, int argc, char **argv);
+
+/*
+    Pre: -
+
+    Post: Limpia la pantalla de la terminal.
+*/
+void limpiar_pantalla();
+
+/*
+    Pre: -
+
+    Post: Limpia el stdin restante.
+*/
+void limpiar_buffer();
+
+/*
+    Pre: -
+
+    Post: Espera el input de ENTER para salir de la accion correspondiente.
+*/
+void esperar_enter();
+
 #endif // FUNCTIONS_H_

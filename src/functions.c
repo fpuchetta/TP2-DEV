@@ -1,4 +1,5 @@
 #include "functions.h"
+#include "ansi.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -212,4 +213,24 @@ int diferencia_pokemones(tp1_t *tp, int argc, char **argv)
 		return -1;
 
 	return operacion_con_tps(tp, otro_tp, csv_resultado, tp1_diferencia);
+}
+
+void limpiar_pantalla(){
+    printf(ANSI_CLEAR_SCREEN ANSI_CURSOR_HOME);
+    fflush(stdout);
+}
+
+void limpiar_buffer(){
+    int ch = getchar();
+    while (ch != '\n' && ch != EOF){
+        ch = getchar();
+    }
+}
+
+void esperar_enter(){
+    int c;
+
+    printf("\n\nPresione ENTER para volver al menú...");
+    fflush(stdout);
+    while ((c = getchar()) != '\n' && c != EOF) {}
 }
