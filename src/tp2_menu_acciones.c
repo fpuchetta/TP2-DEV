@@ -3,8 +3,9 @@
 #include <stdio.h>
 #include <limits.h>
 
-void accion_cargar_archivo(void *user_data) {
+bool accion_cargar_archivo(void *user_data) {
     //juego_t *juego = user_data;
+    return true;
 }
 
 char *leer_linea_dinamica() {
@@ -42,7 +43,7 @@ void imprimir_pokemon(const struct pokemon *pokemon)
 	       pokemon->ataque, pokemon->defensa, pokemon->velocidad);
 }
 
-void accion_buscar_por_nombre(void *user_data) {
+bool accion_buscar_por_nombre(void *user_data) {
     juego_t *juego = user_data;
 
     printf("Ingrese el nombre del Pokémon: ");
@@ -51,7 +52,7 @@ void accion_buscar_por_nombre(void *user_data) {
     char *nombre = leer_linea_dinamica();
     if (!nombre) {
         printf("Error leyendo nombre.\n");
-        return;
+        return true;
     }
 
     struct pokemon *p = tp1_buscar_nombre(juego->pokedex, nombre);
@@ -59,77 +60,127 @@ void accion_buscar_por_nombre(void *user_data) {
     if (!p) {
         printf("No existe un Pokémon con ese nombre.\n");
         free(nombre);
-        return;
+        return true;
     }
 
     imprimir_pokemon(p);
 
     free(nombre);
+    return true;
 }
 
-void accion_buscar_por_id(void *user_data) {
-    juego_t *juego = user_data;
-    if (!juego || !juego->pokedex) {
-        printf("Error: juego o pokedex no inicializados.\n");
-        return;
-    }
-
-    printf("Ingrese el ID del Pokémon: ");
-    fflush(stdout);
-
-    char *linea = leer_linea_dinamica();
-    if (!linea) {
-        printf("Error leyendo la entrada.\n");
-        return;
-    }
-
-    // Convertir a entero con algo de validación
+int string_a_int(char *linea){
     char *endptr = NULL;
     long id_long = strtol(linea, &endptr, 10);
     free(linea);
 
     if (endptr == linea) {
         printf("Entrada inválida: no se reconoció un número.\n");
-        return;
+        return -1;
     }
 
     if (id_long < INT_MIN || id_long > INT_MAX) {
         printf("ID fuera de rango.\n");
-        return;
+        return -1;
+    }
+    return (int)id_long;
+}
+
+bool accion_buscar_por_id(void *user_data) {
+    juego_t *juego = user_data;
+
+    printf("Ingrese el ID del Pokémon: ");
+    fflush(stdout);
+
+    char *linea = leer_linea_dinamica();
+    if (!linea) {
+        printf("Error leyendo id.\n");
+        return false;
     }
 
-    int id = (int)id_long;
+    int id = string_a_int(linea);
+    if (id==-1){
+        return true;
+    }
 
     struct pokemon *p = tp1_buscar_id(juego->pokedex, id);
     if (!p) {
         printf("No existe un Pokémon con ID %d.\n", id);
-        return;
+        return true;
     }
 
     imprimir_pokemon(p);
+
+    return true;
 }
 
-void accion_mostrar_por_nombre(void *user_data) {
-    //juego_t *juego = user_data;
-    // TODO
+bool recolectar_pokemones(struct pokemon *p, void *extra)
+{
+	recolector_t *r = extra;
+	if (r->n == r->cap) {
+		r->error = 1;
+		return false;
+	}
+	r->v[r->n++] = p;
+	return true;
 }
 
-void accion_mostrar_por_id(void *user_data) {
-    //juego_t *juego = user_data;
-    // TODO
+
+bool accion_mostrar_por_nombre(void *user_data) {
+    juego_t *juego = user_data;
+    size_t n = tp1_cantidad(juego->pokedex);
+	struct pokemon **tmp = malloc(n * sizeof *tmp);
+	if (!tmp)
+		return false;
+
+	recolector_t r = { .v = tmp, .n = 0, .cap = n, .error = 0 };
+	size_t aplicados = tp1_con_cada_pokemon(juego->pokedex, recolectar_pokemones, &r);
+	if (r.error || aplicados != n) {
+		free(tmp);
+		return false;
+	}
+
+	ordenar_vec_pokemones(tmp, n, sizeof(struct pokemon *),
+			      cmp_pokemon_nombre_ptr);
+
+	for (size_t i = 0; i < n; i++) {
+		struct pokemon *p = tmp[i];
+		imprimir_pokemon(p);
+	}
+
+	free(tmp);
+    return true;
 }
 
-static unsigned int juego_semilla_default(void) {
+bool pokedex_mostrar_nombres(struct pokemon *pokemon_a_evaluar, void *ctx)
+{
+	ctx = NULL;
+	imprimir_pokemon(pokemon_a_evaluar);
+	return true;
+}
+
+
+bool accion_mostrar_por_id(void *user_data) {
+    juego_t *juego = user_data;
+	size_t iterados =
+		tp1_con_cada_pokemon(juego->pokedex, pokedex_mostrar_nombres, NULL);
+	if (iterados != tp1_cantidad(juego->pokedex))
+		return false;
+
+    return true;
+}
+
+static unsigned int juego_semilla_default() {
     return (unsigned int)rand();
 }
 
-void accion_jugar(void *user_data) {
+bool accion_jugar(void *user_data) {
     juego_t *juego = user_data;
     unsigned int semilla = juego_semilla_default();   // viene de rand()
-    juego_jugar(juego, semilla);
+    return juego_jugar(juego, semilla);
 }
 
-void accion_jugar_con_semilla(void *user_data) {
+bool accion_jugar_con_semilla(void *user_data) {
     juego_t *juego = user_data;
     int semilla_usuario = 0;
 
@@ -141,7 +192,7 @@ void accion_jugar_con_semilla(void *user_data) {
         while (ch != '\n' && ch != EOF) {
             ch = getchar();
         }
-        return;
+        return true;
     }
 
     // limpiar resto de la línea
@@ -150,5 +201,5 @@ void accion_jugar_con_semilla(void *user_data) {
         ch = getchar();
     }
 
-    juego_jugar(juego, (unsigned int)semilla_usuario);
+    return juego_jugar(juego, (unsigned int)semilla_usuario);
 }

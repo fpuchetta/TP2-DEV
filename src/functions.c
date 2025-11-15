@@ -216,7 +216,7 @@ int diferencia_pokemones(tp1_t *tp, int argc, char **argv)
 }
 
 void limpiar_pantalla(){
-    printf(ANSI_CLEAR_SCREEN ANSI_CURSOR_HOME);
+    printf(ANSI_CLEAR_SCREEN ANSI_CURSOR_HOME ANSI_CLEAR_SCROLLBACK);
     fflush(stdout);
 }
 

@@ -182,9 +182,7 @@ void mapa_destruir(mapa_t* m){
     free(m);
 }
 
-mapa_t *inicializar_mapa(tp1_t *pokedex){
-    if (!pokedex) return NULL;
-
+mapa_t *inicializar_mapa(){
     mapa_t *m = calloc(1, sizeof(mapa_t));
     if (!m) return NULL;
 
@@ -233,7 +231,7 @@ juego_t *juego_crear(const char* archivo){
         return NULL;
     }
 
-    juego->cuadrilla=inicializar_mapa(juego->pokedex);
+    juego->cuadrilla=inicializar_mapa();
     if (!juego->cuadrilla){
         printf("Error al crear el mapa\n");
         tp1_destruir(juego->pokedex);
@@ -258,7 +256,7 @@ juego_t *juego_crear(const char* archivo){
         tp1_destruir(juego->pokedex);
         free(juego);
         return NULL;
-    }
+    }// no creo que sea una cola, quizas una lista
 
     return juego;
 }
@@ -297,8 +295,8 @@ bool juego_preparar(juego_t *juego, unsigned int semilla){
     return true;
 }
 
-void juego_correr(juego_t* juego){
-    if (!juego) return;
+bool juego_correr(juego_t* juego){
+    if (!juego) return false;
 
     int c = 0;
     char letra = '\0';
@@ -325,13 +323,15 @@ void juego_correr(juego_t* juego){
         // si el usuario toca enter sin querer,
         // volvemos al loop y volvemos a imprimir
     }
+
+    return true;
 }
 
-void juego_jugar(juego_t* juego, unsigned int semilla){
+bool juego_jugar(juego_t* juego, unsigned int semilla){
     if (!juego_preparar(juego,semilla)){
         printf("Error preparando el juego.\n");
-        return;
+        return false;
     }
 
-    juego_correr(juego);
+    return juego_correr(juego);
 }

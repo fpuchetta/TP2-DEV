@@ -21,7 +21,7 @@ static bool agregar_accion_o_fallar(menu_t *menu_raiz,
                                     menu_t *menu_destino,
                                     char tecla,
                                     const char *texto,
-                                    void (*accion)(void *))
+                                    bool (*accion)(void *))
 {
     if (!menu_agregar_accion(menu_destino, tecla, texto, accion)) {
         menu_destruir_todo(menu_raiz);

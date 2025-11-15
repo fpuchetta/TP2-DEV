@@ -9,7 +9,7 @@
 #define MENU_TECLA_ESTILOS 'E'
 
 typedef struct menu menu_t;
-typedef void (*menu_accion_t)(void *user_data);
+typedef bool (*menu_accion_t)(void *user_data);
 typedef void (*menu_mostrar_t)(char tecla, char *nombre);
 
 /*

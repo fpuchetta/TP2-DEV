@@ -47,6 +47,6 @@ struct juego{
 */
 juego_t *juego_crear(const char *archivo);
 
-void juego_jugar(juego_t* juego,unsigned int semilla);
+bool juego_jugar(juego_t* juego,unsigned int semilla);
 
 #endif // JUEGO_H_

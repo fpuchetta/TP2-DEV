@@ -4,6 +4,7 @@
 #include <string.h>
 
 #define ANSI_CURSOR_HOME "\x1b[H"
+#define ANSI_CLEAR_SCROLLBACK "\x1b[3J"
 
 #define MODO_LECTURA "r"
 #define MODO_ESCRITURA "w"

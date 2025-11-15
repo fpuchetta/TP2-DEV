@@ -326,26 +326,27 @@ opcion_t *menu_buscar_opcion(menu_t *m, char tecla){
 
     Post: Realiza la opcion relacionada a la tecla pasada por parametro.
 */
-void manejar_opcion_normal(menu_running_t *run, char tecla){
+bool manejar_opcion_normal(menu_running_t *run, char tecla){
     menu_t *m = run->menu_actual;
     opcion_t *op = menu_buscar_opcion(m, tecla);
 
-    if (!op){
-        printf("Opción inválida\n");
-        return;
-    }
+    if (!op) return true;
 
     if (op->tipo == OPCION_ACCION){
         limpiar_pantalla();
-        op->accion(run->user_data);
+        bool resultado = op->accion(run->user_data);
         esperar_enter();
+        return resultado;
     } else if (op->tipo == OPCION_SUBMENU){
         if (!pila_apilar(run->stack_menus, m)){
             run->salir=true;
+            return false;
         }else{
             run->menu_actual = op->submenu;
         }
     }
+    
+    return true;
 }
 
 /*
@@ -400,7 +401,7 @@ void menu_mostrar(menu_running_t *run){
     Post: Ejecuta el menu por tiempo indefinido
           hasta que el usuario decida salir.
 */
-void menu_correr(menu_running_t *run){
+bool menu_correr(menu_running_t *run){
     while (!run->salir) {
 
         limpiar_pantalla();
@@ -411,7 +412,7 @@ void menu_correr(menu_running_t *run){
 
         if (c == EOF) {
             run->salir = true;
-            return;
+            return true;
         }
 
         char tecla = (char)c;
@@ -421,8 +422,12 @@ void menu_correr(menu_running_t *run){
             manejada = manejar_tecla_especial(run, tecla);
 
         if (!run->salir && !manejada)
-            manejar_opcion_normal(run, tecla);
+            if (!manejar_opcion_normal(run, tecla)){
+                return false;
+            }
     }
+
+    return true;
 }
 
 bool menu_ejecutar(menu_t *menu_base, void *user_data){
@@ -438,11 +443,13 @@ bool menu_ejecutar(menu_t *menu_base, void *user_data){
     };
 
     if (!run.stack_menus){
-        // error creando la pila, no se puede correr el menú
         return false;
     }
 
-    menu_correr(&run);
+    if (!menu_correr(&run)){
+        pila_destruir(run.stack_menus);
+        return false;
+    }
 
     pila_destruir(run.stack_menus);
     
