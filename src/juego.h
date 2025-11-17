@@ -16,6 +16,16 @@
 
 typedef struct juego juego_t;
 
+typedef enum {
+    JUGADA_ERROR_MEMORIA =-1,
+    JUGADA_VALIDA,
+    JUGADA_CARTA_INVALIDA,
+    JUGADA_CARTA_YA_DESCUBIERTA,
+    JUGADA_MISMA_CARTA,
+    JUGADA_FORMO_PAR,
+    JUGADA_NO_FORMO_PAR
+} estado_jugada_t;
+
 /*
     Pre: -
     
@@ -85,5 +95,42 @@ bool juego_tiene_pokedex(juego_t *juego);
     Post: Libera toda la memoria asociada al juego.
 */
 void juego_destruir(juego_t *juego);
+
+
+//////////////////////////////////////////
+
+estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2);
+
+estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2);
+
+/*
+    Pre: juego no debe ser NULL.
+    Post: Devuelve el jugador actual (0 o 1).
+*/
+int juego_obtener_jugador_actual(const juego_t *juego);
+
+/*
+    Pre: juego no debe ser NULL.
+    Post: Devuelve el puntaje del jugador especificado.
+*/
+int juego_obtener_puntaje(const juego_t *juego, int jugador);
+
+/*
+    Pre: juego no debe ser NULL.
+    Post: Devuelve true si la carta está descubierta.
+*/
+bool juego_es_carta_descubierta(const juego_t *juego, int indice_carta);
+
+/*
+    Pre: juego no debe ser NULL.
+    Post: Devuelve true si la carta está visible temporalmente.
+*/
+bool juego_es_carta_visible(const juego_t *juego, int indice_carta);
+
+/*
+    Pre: juego no debe ser NULL.
+    Post: Devuelve el pokemon asociado a una carta (NULL si no tiene).
+*/
+struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_carta);
 
 #endif // JUEGO_H_

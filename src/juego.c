@@ -183,7 +183,7 @@ juego_t *juego_crear(const char* archivo){
     if(archivo){
         juego->pokedex=tp1_leer_archivo(archivo);
         if (!juego->pokedex){
-            printf("Error al crear pokedex\n");
+            free(juego);
             return NULL;
         }
     }
@@ -349,11 +349,7 @@ int cambiar_indice_jugador(int indice_actual){
 }
 
 bool validar_formato(const char *linea, int *num1, int *num2) {
-    if (!parsear_dos_numeros(linea, num1, num2)) {
-        printf("Error: Formato incorrecto. Use: numero espacio numero\n");
-        return false;
-    }
-    return true;
+    return parsear_dos_numeros(linea,num1,num2);
 }
 
 bool validar_rangos(int num1, int num2) {
@@ -383,7 +379,7 @@ bool validar_no_descubiertas(juego_t *juego, int idx1, int idx2) {
     }
     return true;
 }
-
+/*
 bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
     const char *color_jugador = (juego->jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
     bool par_valido = false;
@@ -413,7 +409,7 @@ bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
     
     return true;
 }
-
+*/
 bool juego_terminado(juego_t *juego) {
     for (int i = 0; i < TOTAL_CARTAS; i++) {
         if (!juego->cuadrilla->celdas[i].encontrada) {
@@ -518,6 +514,223 @@ bool mostrar_layout_completo(juego_t *juego) {
     return true;
 }
 
+bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
+    const char *color_jugador = (juego->jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
+    
+    printf("%sJugador %i%s ingrese dos cartas separadas por espacio: ", 
+           color_jugador, juego->jugador_actual + 1, ANSI_COLOR_RESET);
+    fflush(stdout);
+    
+    char *linea = leer_linea_dinamica();
+    if (!linea) {
+        return false;
+    }
+    
+    int num1, num2;
+    bool formato_valido = validar_formato(linea, &num1, &num2);
+    if(!formato_valido){
+        *idx1=-1;
+        *idx2=-1;
+        printf("Error: Formato incorrecto. Use: numero espacio numero\n");
+    }else{
+        *idx1 = num1 - 1;
+        *idx2 = num2 - 1;
+    }
+    
+    free(linea);
+    return true;
+}
+
+bool es_jugada_valida(estado_jugada_t resultado) {
+    return (resultado == JUGADA_VALIDA);
+}
+
+void mostrar_mensaje_error(estado_jugada_t resultado) {
+    switch (resultado) {
+        case JUGADA_CARTA_YA_DESCUBIERTA:
+            printf("Error: Una de las cartas ya fue descubierta. Intente nuevamente.\n");
+            break;
+            
+        case JUGADA_MISMA_CARTA:
+            printf("Error: No puede seleccionar la misma carta dos veces. Intente nuevamente.\n");
+            break;
+            
+        case JUGADA_CARTA_INVALIDA:
+        default:
+            printf("Error: Por favor elija carta dentro de los limites.\n");
+            break;
+    }
+}
+
+estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
+    if (!juego) return JUGADA_ERROR_MEMORIA;
+
+    // Validación 1: Rangos válidos (0-17)
+    if (carta1 < 0 || carta1 >= TOTAL_CARTAS || carta2 < 0 || carta2 >= TOTAL_CARTAS) {
+        return JUGADA_CARTA_INVALIDA;
+    }
+    
+    // Validación 2: No misma carta
+    if (carta1 == carta2) {
+        return JUGADA_MISMA_CARTA;
+    }
+    
+    // Validación 3: Cartas no descubiertas
+    if (juego->cuadrilla->celdas[carta1].encontrada || 
+        juego->cuadrilla->celdas[carta2].encontrada) {
+        return JUGADA_CARTA_YA_DESCUBIERTA;
+    }
+    
+    juego->cuadrilla->celdas[carta1].visible=true;
+    juego->cuadrilla->celdas[carta2].visible=true;
+    return JUGADA_VALIDA;
+}
+
+bool juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2) {
+    if (!juego) return false;
+    
+    // Mostrar el tablero con cartas visibles
+    if (!mostrar_layout_completo(juego)){
+        return false;
+    }
+    printf("Mostrando cartas seleccionadas...\n\n");
+    
+    // Restaurar visibilidad original
+    juego->cuadrilla->celdas[carta1].visible = false;
+    juego->cuadrilla->celdas[carta2].visible = false;
+    
+    return true;
+}
+
+estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
+    // Verificar si forman par
+    bool acierto = es_acierto(juego, carta1, carta2);
+    
+    // Agregar al historial
+    bool historial_ok = agregar_jugada_historial(juego, carta1, carta2, acierto);
+    if (!historial_ok) {
+        return JUGADA_ERROR_MEMORIA;
+    }
+    
+    // Procesar resultado
+    if (acierto) {
+        // ACIERTO: Cartas se marcan como descubiertas
+        juego->cuadrilla->celdas[carta1].encontrada = true;
+        juego->cuadrilla->celdas[carta2].encontrada = true;
+        juego->cuadrilla->celdas[carta1].jugador_descubridor = juego->jugador_actual;
+        juego->cuadrilla->celdas[carta2].jugador_descubridor = juego->jugador_actual;
+        juego->jugadores[juego->jugador_actual].puntaje++;
+        return JUGADA_FORMO_PAR;
+    } else {
+        // FALLO: Cambia turno (las cartas ya están ocultas)
+        juego->jugador_actual = cambiar_indice_jugador(juego->jugador_actual);
+        return JUGADA_NO_FORMO_PAR;
+    }
+}
+
+bool procesar_turno(juego_t *juego) {
+    if (!juego) return false;
+    bool mostrar_ok = mostrar_layout_completo(juego);
+    if (!mostrar_ok) {
+        return false;
+    }
+
+    estado_jugada_t resultado=JUGADA_VALIDA;
+    bool jugada_valida = false;
+    int idx1, idx2;
+    
+    while (!jugada_valida && resultado != JUGADA_ERROR_MEMORIA) {
+        bool input_ok = pedir_y_validar_par_cartas(juego, &idx1, &idx2);
+        
+        if (!input_ok) {
+            resultado=JUGADA_ERROR_MEMORIA;
+        } else {
+            resultado = juego_validar_jugada(juego, idx1, idx2);
+            if (es_jugada_valida(resultado)) {
+                jugada_valida = true;
+
+                if (!juego_mostrar_cartas_temporalmente(juego, idx1, idx2))
+                    resultado=JUGADA_ERROR_MEMORIA;
+                else{ 
+                    sleep(2);
+                    resultado = juego_ejecutar_jugada(juego, idx1, idx2);
+                }
+            } else
+                mostrar_mensaje_error(resultado);
+        }
+    }
+    if (resultado==JUGADA_ERROR_MEMORIA){
+        return false;
+    }    
+    
+    mostrar_layout_completo(juego);
+    if (resultado == JUGADA_FORMO_PAR) {
+        printf("¡Acierto! Punto para el jugador actual.\n");
+    } else {
+        printf("No es un acierto. Turno del siguiente jugador.\n");
+    }
+    
+    return true;
+}
+
+bool mostrar_resultado_final(juego_t *juego) {
+    if (!juego) return false;
+    
+    limpiar_pantalla();
+    int puntaje_j1 = juego_obtener_puntaje(juego, 0);
+    int puntaje_j2 = juego_obtener_puntaje(juego, 1);
+    
+    if (puntaje_j1 > puntaje_j2) {
+        printf("\tGANO EL JUGADOR 1.\n");
+    } else if (puntaje_j2 > puntaje_j1) {
+        printf("\tGANO EL JUGADOR 2.\n");
+    } else {
+        printf("\tEMPATE.\n");
+    }
+    
+    return true;
+}
+
+bool juego_interactivo(juego_t *juego) {
+    if (!juego) return false;
+
+    bool terminado = false;
+    bool error_memoria = false;
+
+    while (!terminado && !error_memoria) {
+        // PROCESAR UN TURNO COMPLETO
+        bool turno_ok = procesar_turno(juego);
+        if (!turno_ok) {
+            error_memoria = true;
+        } else {
+            // VERIFICAR SI TERMINÓ EL JUEGO
+            terminado = juego_terminado(juego);
+            if (terminado) {
+                printf("¡Juego terminado!\n");
+            } else {
+                sleep(2);
+            }
+        }
+    }
+
+    // MOSTRAR RESULTADO FINAL
+    if (!error_memoria) {
+        mostrar_resultado_final(juego);
+    }
+
+    return !error_memoria;
+}
+
+bool juego_jugar(juego_t* juego, unsigned int semilla){
+    if (!juego_preparar(juego,semilla)){
+        printf("Error preparando el juego.\n");
+        return false;
+    }
+
+    return juego_interactivo(juego);
+}
+
+/*
 bool procesar_jugada(juego_t *juego) {
     if (!juego || !juego->cuadrilla || !juego->cuadrilla->celdas) {
         return false;
@@ -607,7 +820,7 @@ bool juego_jugar(juego_t* juego, unsigned int semilla){
     }
 
     return juego_correr(juego);
-}
+}*/
 
 void juego_destruir(juego_t* juego){
     tp1_destruir(juego->pokedex);
@@ -640,4 +853,30 @@ bool juego_establecer_pokedex(juego_t *juego, tp1_t *nueva_pokedex) {
 
 bool juego_tiene_pokedex(juego_t *juego) {
     return juego && juego->pokedex;
+}
+
+//
+
+int juego_obtener_jugador_actual(const juego_t *juego) {
+    return juego ? juego->jugador_actual : -1;
+}
+
+int juego_obtener_puntaje(const juego_t *juego, int jugador) {
+    if (!juego || jugador < 0 || jugador > 1) return -1;
+    return juego->jugadores[jugador].puntaje;
+}
+
+bool juego_es_carta_descubierta(const juego_t *juego, int indice_carta) {
+    if (!juego || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) return false;
+    return juego->cuadrilla->celdas[indice_carta].encontrada;
+}
+
+bool juego_es_carta_visible(const juego_t *juego, int indice_carta) {
+    if (!juego || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) return false;
+    return juego->cuadrilla->celdas[indice_carta].visible;
+}
+
+struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_carta) {
+    if (!juego || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) return NULL;
+    return juego->cuadrilla->celdas[indice_carta].pokemon;
 }

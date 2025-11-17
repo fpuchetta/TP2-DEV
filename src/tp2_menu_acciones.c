@@ -222,6 +222,6 @@ bool accion_jugar_con_semilla(void *user_data) {
         printf("Semilla inválida.\n");
         return true;
     }
-
+    
     return juego_jugar(juego, (unsigned int)semilla_usuario);
 }
