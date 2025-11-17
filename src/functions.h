@@ -2,6 +2,7 @@
 #define FUNCTIONS_H_
 #include "tp1.h"
 #include <string.h>
+#include <limits.h>
 
 #define ANSI_CURSOR_HOME "\x1b[H"
 #define ANSI_CLEAR_SCROLLBACK "\x1b[3J"
@@ -155,5 +156,40 @@ void limpiar_buffer();
     Post: Espera el input de ENTER para salir de la accion correspondiente.
 */
 void esperar_enter();
+
+/*
+	Pre: La linea no debe ser NULL;
+
+	Post: Devuelve el string pasado por parametro en int.
+		  Devuelve -1 en caso de error.
+*/
+int string_a_int(char *linea);
+
+
+/*
+	Pre: -
+
+	Post: Devuelve un puntero con la linea
+		  leida por stdin reservada en memoria.
+*/
+char *leer_linea_dinamica();
+
+/*
+    Pre: linea, token1 y token2 no deben ser NULL.
+
+    Post: Devuelve true si la linea contiene exactamente dos tokens separados por espacio.
+          En caso de exito: *token1 y *token2 contienen los tokens reservados en memoria.
+          En caso de error: Devuelve false y no asigna memoria o libera la asignada.
+*/
+bool separar_dos_tokens(const char *linea, char **token1, char **token2);
+
+/*
+    Pre: linea, num1 y num2 no deben ser NULL.
+
+    Post: Devuelve true si la línea contiene exactamente dos números válidos.
+          En caso de éxito: *num1 y *num2 contienen los números convertidos.
+          En caso de error: Devuelve false y libera cualquier memoria temporal.
+*/
+bool parsear_dos_numeros(const char *linea, int *num1, int *num2);
 
 #endif // FUNCTIONS_H_

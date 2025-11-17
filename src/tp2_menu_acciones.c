@@ -2,38 +2,45 @@
 #include "tp1.h"
 #include <stdio.h>
 #include <limits.h>
+#include <time.h>
 
 bool accion_cargar_archivo(void *user_data) {
-    //juego_t *juego = user_data;
-    return true;
-}
-
-char *leer_linea_dinamica() {
-    size_t cap = 4;
-    size_t len = 0;
-    char *buffer = malloc(cap);
-    if (!buffer) return NULL;
-
-    int c = 0;
-
-    while ((c = getchar()) != '\n' && c != EOF) {
-
-        // si hace falta crecer:
-        if (len + 1 >= cap) {
-            cap *= 2;
-            char *nuevo = realloc(buffer, cap);
-            if (!nuevo) {
-                free(buffer);
-                return NULL;
-            }
-            buffer = nuevo;
+    juego_t *juego = user_data;
+    
+    if (juego_tiene_pokedex(juego)) {
+        printf("Ya hay un archivo cargado. ¿Desea recargar? (s/N): ");
+        fflush(stdout);
+        
+        int c = getchar();
+        if (c != '\n') limpiar_buffer();
+        
+        if (c != 's' && c != 'S') {
+            printf("Recarga cancelada.\n");
+            return true;
         }
-
-        buffer[len++] = (char)c;
+        
+        printf("Recargando archivo...\n");
+        // Usar la función pública en lugar de acceder directamente
+        juego_establecer_pokedex(juego, NULL);
     }
-
-    buffer[len] = '\0';
-    return buffer;
+    
+    printf("Ingrese ruta del archivo: ");
+    fflush(stdout);
+    
+    char *ruta = leer_linea_dinamica();
+    if (!ruta) return false;
+    
+    tp1_t *nueva_pokedex = tp1_leer_archivo(ruta);
+    if (!nueva_pokedex) {
+        printf("Error cargando archivo '%s'\n", ruta);
+        free(ruta);
+        return false;
+    }
+    
+    bool exito = juego_establecer_pokedex(juego, nueva_pokedex);
+    printf("Archivo '%s' cargado exitosamente.\n", ruta);
+    free(ruta);
+    return exito;
 }
 
 void imprimir_pokemon(const struct pokemon *pokemon)
@@ -46,16 +53,23 @@ void imprimir_pokemon(const struct pokemon *pokemon)
 bool accion_buscar_por_nombre(void *user_data) {
     juego_t *juego = user_data;
 
+    if (!juego_tiene_pokedex(juego)) {
+        printf("Error: No hay archivo cargado.\n");
+        return true;
+    }
+
     printf("Ingrese el nombre del Pokémon: ");
     fflush(stdout);
 
     char *nombre = leer_linea_dinamica();
     if (!nombre) {
         printf("Error leyendo nombre.\n");
-        return true;
+        return false;
     }
 
-    struct pokemon *p = tp1_buscar_nombre(juego->pokedex, nombre);
+    // Usar función de acceso
+    tp1_t *pokedex = juego_obtener_pokedex(juego);
+    struct pokemon *p = tp1_buscar_nombre(pokedex, nombre);
 
     if (!p) {
         printf("No existe un Pokémon con ese nombre.\n");
@@ -64,30 +78,17 @@ bool accion_buscar_por_nombre(void *user_data) {
     }
 
     imprimir_pokemon(p);
-
     free(nombre);
     return true;
 }
 
-int string_a_int(char *linea){
-    char *endptr = NULL;
-    long id_long = strtol(linea, &endptr, 10);
-    free(linea);
-
-    if (endptr == linea) {
-        printf("Entrada inválida: no se reconoció un número.\n");
-        return -1;
-    }
-
-    if (id_long < INT_MIN || id_long > INT_MAX) {
-        printf("ID fuera de rango.\n");
-        return -1;
-    }
-    return (int)id_long;
-}
-
 bool accion_buscar_por_id(void *user_data) {
     juego_t *juego = user_data;
+
+    if (!juego_tiene_pokedex(juego)) {
+        printf("Error: No hay archivo cargado.\n");
+        return true;
+    }
 
     printf("Ingrese el ID del Pokémon: ");
     fflush(stdout);
@@ -99,18 +100,19 @@ bool accion_buscar_por_id(void *user_data) {
     }
 
     int id = string_a_int(linea);
-    if (id==-1){
+    free(linea);
+    if (id == -1){
         return true;
     }
 
-    struct pokemon *p = tp1_buscar_id(juego->pokedex, id);
+    tp1_t *pokedex = juego_obtener_pokedex(juego);
+    struct pokemon *p = tp1_buscar_id(pokedex, id);
     if (!p) {
         printf("No existe un Pokémon con ID %d.\n", id);
         return true;
     }
 
     imprimir_pokemon(p);
-
     return true;
 }
 
@@ -125,16 +127,22 @@ bool recolectar_pokemones(struct pokemon *p, void *extra)
 	return true;
 }
 
-
 bool accion_mostrar_por_nombre(void *user_data) {
     juego_t *juego = user_data;
-    size_t n = tp1_cantidad(juego->pokedex);
-	struct pokemon **tmp = malloc(n * sizeof *tmp);
+    
+    if (!juego_tiene_pokedex(juego)) {
+        printf("Error: No hay archivo cargado.\n");
+        return true;
+    }
+
+    tp1_t *pokedex = juego_obtener_pokedex(juego);
+    size_t n = tp1_cantidad(pokedex);
+	struct pokemon **tmp = malloc(n * sizeof(*tmp));
 	if (!tmp)
 		return false;
 
 	recolector_t r = { .v = tmp, .n = 0, .cap = n, .error = 0 };
-	size_t aplicados = tp1_con_cada_pokemon(juego->pokedex, recolectar_pokemones, &r);
+	size_t aplicados = tp1_con_cada_pokemon(pokedex, recolectar_pokemones, &r);
 	if (r.error || aplicados != n) {
 		free(tmp);
 		return false;
@@ -159,46 +167,60 @@ bool pokedex_mostrar_nombres(struct pokemon *pokemon_a_evaluar, void *ctx)
 	return true;
 }
 
-
 bool accion_mostrar_por_id(void *user_data) {
     juego_t *juego = user_data;
-	size_t iterados =
-		tp1_con_cada_pokemon(juego->pokedex, pokedex_mostrar_nombres, NULL);
-	if (iterados != tp1_cantidad(juego->pokedex))
+    
+    if (!juego_tiene_pokedex(juego)) {
+        printf("Error: No hay archivo cargado.\n");
+        return true;
+    }
+
+    tp1_t *pokedex = juego_obtener_pokedex(juego);
+	size_t iterados = tp1_con_cada_pokemon(pokedex, pokedex_mostrar_nombres, NULL);
+	if (iterados != tp1_cantidad(pokedex))
 		return false;
 
     return true;
 }
 
-static unsigned int juego_semilla_default() {
-    return (unsigned int)rand();
+static unsigned int obtener_semilla_aleatoria() {
+    return (unsigned int)time(NULL);
 }
 
 bool accion_jugar(void *user_data) {
     juego_t *juego = user_data;
-    unsigned int semilla = juego_semilla_default();   // viene de rand()
-    return juego_jugar(juego, semilla);
+    
+    if (!juego_tiene_pokedex(juego)) {
+        printf("Por favor, primero cargue un archivo con la opcion C en el menu principal.\n");
+        return true;
+    }
+
+    return juego_jugar(juego,obtener_semilla_aleatoria());
 }
 
 bool accion_jugar_con_semilla(void *user_data) {
     juego_t *juego = user_data;
-    int semilla_usuario = 0;
-
-    printf("Ingrese una semilla (entero): ");
-    if (scanf("%d", &semilla_usuario) != 1) {
-        printf("Entrada inválida.\n");
-        // limpiar stdin
-        int ch = getchar();
-        while (ch != '\n' && ch != EOF) {
-            ch = getchar();
-        }
+    
+    if (!juego_tiene_pokedex(juego)) {
+        printf("Por favor, primero cargue un archivo con la opcion C en el menu principal.\n");
         return true;
     }
-
-    // limpiar resto de la línea
-    int ch = getchar();
-    while (ch != '\n' && ch != EOF) {
-        ch = getchar();
+    
+    printf("Ingrese una semilla (entero): ");
+    fflush(stdout);
+    
+    char *linea = leer_linea_dinamica();
+    if (!linea) {
+        printf("Error leyendo semilla.\n");
+        return false;
+    }
+    
+    int semilla_usuario = string_a_int(linea);
+    free(linea);
+    
+    if (semilla_usuario == -1) {
+        printf("Semilla inválida.\n");
+        return true;
     }
 
     return juego_jugar(juego, (unsigned int)semilla_usuario);

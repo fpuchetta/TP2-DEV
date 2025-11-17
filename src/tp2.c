@@ -10,6 +10,22 @@ struct tp2{
     juego_t* juego;
 };
 
+
+void estilo_panel_verde_retro(char tecla, char *texto) {
+    printf(ANSI_COLOR_GREEN "(" 
+           ANSI_COLOR_BOLD ANSI_COLOR_YELLOW "%c" 
+           ANSI_COLOR_RESET ANSI_COLOR_GREEN ") " 
+           ANSI_COLOR_RESET "%s\n",
+           tecla, texto);
+}
+
+void estilo_panel_azul(char tecla, char *texto) {
+    printf(ANSI_BG_BLUE ANSI_COLOR_BOLD ANSI_COLOR_WHITE
+           "[ %c ]"
+           ANSI_COLOR_RESET " %s\n",
+           tecla, texto);
+}
+
 void estilo_cyber_panel(char tecla, char *texto) {
     printf(ANSI_BG_BLUE ANSI_COLOR_BOLD ANSI_COLOR_CYAN
            " %c "
@@ -97,6 +113,16 @@ menu_t *inicializar_menu_tp2()
     if (!menu_principal)
         return NULL;
 
+    if (!menu_agregar_estilo(menu_principal,estilo_panel_azul)){
+        free(menu_principal);
+        return NULL;
+    }
+
+    if (!menu_agregar_estilo(menu_principal,estilo_panel_verde_retro)){
+        menu_destruir_todo(menu_principal);
+        return NULL;
+    }
+
     // Opciones del menú principal
     if (!inicializar_menu_principal(menu_principal))
         return NULL;
@@ -147,5 +173,6 @@ void tp2_destruir_todo(tp2_t *tp2){
     if (!tp2) return;
 
     menu_destruir_todo(tp2->menu_tp2);
+    juego_destruir(tp2->juego);
     free(tp2);
 }

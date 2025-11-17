@@ -13,7 +13,6 @@ int main(int argc, char *argv[])
     // FALTA EJECUTAR POR CSV POR PARAMETRO.
     //
     //
-    srand((unsigned int)time(NULL));
     tp2_t *tp2=tp2_crear("normal.csv");
     if (!tp2){
         printf("Error al crear el tp2\n");
