@@ -34,6 +34,7 @@ typedef struct movimiento {
 
 typedef struct jugador{
     int puntaje;
+    lista_t *historial_personal;
 }jugador_t;
 
 struct juego{
@@ -169,9 +170,29 @@ mapa_t *inicializar_mapa(){
     return m;
 }
 
+bool inicializar_historial_personal(jugador_t * j){
+    j[0].historial_personal=lista_crear();
+    if (!j[0].historial_personal){
+        return false;
+    }
+
+    j[1].historial_personal=lista_crear();
+    if(!j[1].historial_personal){
+        lista_destruir(j[0].historial_personal);
+        return false;
+    }
+
+    return true;
+}
+
 jugador_t *inicializar_jugadores(juego_t* juego){
     jugador_t *j=calloc(2,sizeof(jugador_t));
     if (!j) return NULL;
+
+    if (!inicializar_historial_personal(j)){
+        free(j);
+        return NULL;
+    }
 
     return j;
 }
@@ -308,6 +329,13 @@ bool juego_reiniciar(juego_t *juego, unsigned int semilla) {
     juego->jugadores[1].puntaje = 0;
     juego->jugador_actual = 0;
 
+    lista_destruir(juego->jugadores[0].historial_personal);
+    lista_destruir(juego->jugadores[1].historial_personal);
+
+    if(!inicializar_historial_personal(juego->jugadores)){
+        return false;
+    }
+
     if (juego->historial_jugadas) {
         lista_destruir_todo(juego->historial_jugadas, free);
         juego->historial_jugadas = lista_crear();
@@ -352,64 +380,6 @@ bool validar_formato(const char *linea, int *num1, int *num2) {
     return parsear_dos_numeros(linea,num1,num2);
 }
 
-bool validar_rangos(int num1, int num2) {
-    if (num1 < 1 || num1 > TOTAL_CARTAS || num2 < 1 || num2 > TOTAL_CARTAS) {
-        printf("Error: Rango permitido: 1 a %d\n", TOTAL_CARTAS);
-        return false;
-    }
-    return true;
-}
-
-bool validar_diferentes(int num1, int num2) {
-    if (num1 == num2) {
-        printf("Error: No puede seleccionar la misma carta dos veces.\n");
-        return false;
-    }
-    return true;
-}
-
-bool validar_no_descubiertas(juego_t *juego, int idx1, int idx2) {
-    if (juego->cuadrilla->celdas[idx1].encontrada) {
-        printf("Error: La carta %d ya fue descubierta.\n", idx1 + 1);
-        return false;
-    }
-    if (juego->cuadrilla->celdas[idx2].encontrada) {
-        printf("Error: La carta %d ya fue descubierta.\n", idx2 + 1);
-        return false;
-    }
-    return true;
-}
-/*
-bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
-    const char *color_jugador = (juego->jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
-    bool par_valido = false;
-    
-    while (!par_valido) {
-        printf("%sJugador %i%s ingrese dos cartas separadas por espacio: ", 
-               color_jugador, juego->jugador_actual + 1, ANSI_COLOR_RESET);
-        fflush(stdout);
-        
-        char *linea = leer_linea_dinamica();
-        if (!linea) return false;
-        
-        int num1, num2;
-        bool formato_valido = validar_formato(linea, &num1, &num2);
-        bool rangos_validos = formato_valido && validar_rangos(num1, num2);
-        bool diferentes = rangos_validos && validar_diferentes(num1, num2);
-        
-        if (diferentes) {
-            *idx1 = num1 - 1;
-            *idx2 = num2 - 1;
-            bool no_descubiertas = validar_no_descubiertas(juego, *idx1, *idx2);
-            par_valido = no_descubiertas;
-        }
-        
-        free(linea);
-    }
-    
-    return true;
-}
-*/
 bool juego_terminado(juego_t *juego) {
     for (int i = 0; i < TOTAL_CARTAS; i++) {
         if (!juego->cuadrilla->celdas[i].encontrada) {
@@ -422,20 +392,16 @@ bool juego_terminado(juego_t *juego) {
 }
 
 movimiento_t *crear_movimiento(int jugador, int carta1, int carta2, bool acierto) {
-    if (jugador < 0 || carta1 < 0 || carta2 < 0) {
-        return NULL;
-    }
+    if (jugador < 0 || carta1 < 0 || carta2 < 0) return NULL;
 
     movimiento_t *mov = malloc(sizeof(movimiento_t));
-    if (mov == NULL) {
+    if (mov == NULL)
         return NULL;
-    }
 
     mov->jugador = jugador;
     mov->carta1 = carta1;
     mov->carta2 = carta2;
     mov->acierto = acierto;
-    
     return mov;
 }
 
@@ -447,27 +413,28 @@ bool agregar_jugada_historial(juego_t *juego, int idx1, int idx2, bool acierto) 
      
     size_t cantidad = lista_cantidad(juego->historial_jugadas);
     bool agregado;
-    
-    if (cantidad == 0) {
+    if (cantidad == 0)
         agregado = lista_agregar(juego->historial_jugadas, mov);
-    } else {
+    else
         agregado = lista_insertar(juego->historial_jugadas, mov, 0);
-    }
     
+    lista_t* hist_personal_act=juego->jugadores[juego->jugador_actual].historial_personal;
+
     if (!agregado) {
-        printf("Error al agregar mov (cantidad=%zu)\n", cantidad);
         free(mov);
         return false;
     }
-    
+
+    if (!lista_agregar(hist_personal_act,mov)){
+        free(mov);
+        return false;
+    }
+
     return true;
 }
 
 bool mostrar_ultimas_jugadas(juego_t *juego) {
-    if (!juego || !juego->historial_jugadas) {
-        printf("No hay jugadas previas\n");
-        return false;
-    }
+    if (!juego || !juego->historial_jugadas) return false;
     
     if (lista_vacia(juego->historial_jugadas)) return true;
 
@@ -516,15 +483,13 @@ bool mostrar_layout_completo(juego_t *juego) {
 
 bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
     const char *color_jugador = (juego->jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
-    
     printf("%sJugador %i%s ingrese dos cartas separadas por espacio: ", 
            color_jugador, juego->jugador_actual + 1, ANSI_COLOR_RESET);
     fflush(stdout);
     
     char *linea = leer_linea_dinamica();
-    if (!linea) {
+    if (!linea)
         return false;
-    }
     
     int num1, num2;
     bool formato_valido = validar_formato(linea, &num1, &num2);
@@ -541,20 +506,14 @@ bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
     return true;
 }
 
-bool es_jugada_valida(estado_jugada_t resultado) {
-    return (resultado == JUGADA_VALIDA);
-}
-
 void mostrar_mensaje_error(estado_jugada_t resultado) {
     switch (resultado) {
         case JUGADA_CARTA_YA_DESCUBIERTA:
             printf("Error: Una de las cartas ya fue descubierta. Intente nuevamente.\n");
             break;
-            
         case JUGADA_MISMA_CARTA:
             printf("Error: No puede seleccionar la misma carta dos veces. Intente nuevamente.\n");
             break;
-            
         case JUGADA_CARTA_INVALIDA:
         default:
             printf("Error: Por favor elija carta dentro de los limites.\n");
@@ -565,21 +524,15 @@ void mostrar_mensaje_error(estado_jugada_t resultado) {
 estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
     if (!juego) return JUGADA_ERROR_MEMORIA;
 
-    // Validación 1: Rangos válidos (0-17)
-    if (carta1 < 0 || carta1 >= TOTAL_CARTAS || carta2 < 0 || carta2 >= TOTAL_CARTAS) {
+    if (carta1 < 0 || carta1 >= TOTAL_CARTAS || carta2 < 0 || carta2 >= TOTAL_CARTAS)
         return JUGADA_CARTA_INVALIDA;
-    }
-    
-    // Validación 2: No misma carta
-    if (carta1 == carta2) {
+
+    if (carta1 == carta2)
         return JUGADA_MISMA_CARTA;
-    }
-    
-    // Validación 3: Cartas no descubiertas
+
     if (juego->cuadrilla->celdas[carta1].encontrada || 
-        juego->cuadrilla->celdas[carta2].encontrada) {
+        juego->cuadrilla->celdas[carta2].encontrada)
         return JUGADA_CARTA_YA_DESCUBIERTA;
-    }
     
     juego->cuadrilla->celdas[carta1].visible=true;
     juego->cuadrilla->celdas[carta2].visible=true;
@@ -588,137 +541,134 @@ estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
 
 bool juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2) {
     if (!juego) return false;
-    
-    // Mostrar el tablero con cartas visibles
-    if (!mostrar_layout_completo(juego)){
+
+    if (!mostrar_layout_completo(juego))
         return false;
-    }
+
     printf("Mostrando cartas seleccionadas...\n\n");
-    
-    // Restaurar visibilidad original
+
     juego->cuadrilla->celdas[carta1].visible = false;
     juego->cuadrilla->celdas[carta2].visible = false;
-    
     return true;
 }
 
 estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
-    // Verificar si forman par
     bool acierto = es_acierto(juego, carta1, carta2);
     
-    // Agregar al historial
     bool historial_ok = agregar_jugada_historial(juego, carta1, carta2, acierto);
-    if (!historial_ok) {
+    if (!historial_ok)
         return JUGADA_ERROR_MEMORIA;
-    }
     
-    // Procesar resultado
     if (acierto) {
-        // ACIERTO: Cartas se marcan como descubiertas
         juego->cuadrilla->celdas[carta1].encontrada = true;
         juego->cuadrilla->celdas[carta2].encontrada = true;
         juego->cuadrilla->celdas[carta1].jugador_descubridor = juego->jugador_actual;
         juego->cuadrilla->celdas[carta2].jugador_descubridor = juego->jugador_actual;
         juego->jugadores[juego->jugador_actual].puntaje++;
-        return JUGADA_FORMO_PAR;
-    } else {
-        // FALLO: Cambia turno (las cartas ya están ocultas)
+    } else
         juego->jugador_actual = cambiar_indice_jugador(juego->jugador_actual);
-        return JUGADA_NO_FORMO_PAR;
-    }
+
+    return (acierto) ? JUGADA_FORMO_PAR : JUGADA_NO_FORMO_PAR;
 }
 
 bool procesar_turno(juego_t *juego) {
     if (!juego) return false;
-    bool mostrar_ok = mostrar_layout_completo(juego);
-    if (!mostrar_ok) {
+
+    if (!mostrar_layout_completo(juego))
         return false;
-    }
 
     estado_jugada_t resultado=JUGADA_VALIDA;
     bool jugada_valida = false;
     int idx1, idx2;
     
-    while (!jugada_valida && resultado != JUGADA_ERROR_MEMORIA) {
-        bool input_ok = pedir_y_validar_par_cartas(juego, &idx1, &idx2);
-        
-        if (!input_ok) {
-            resultado=JUGADA_ERROR_MEMORIA;
-        } else {
-            resultado = juego_validar_jugada(juego, idx1, idx2);
-            if (es_jugada_valida(resultado)) {
-                jugada_valida = true;
+    while (!jugada_valida) {
+        if (!pedir_y_validar_par_cartas(juego, &idx1, &idx2)) {
+            return false;
+        }
+        resultado = juego_validar_jugada(juego, idx1, idx2);
+        if (resultado != JUGADA_VALIDA) {
+            mostrar_mensaje_error(resultado);
+        }else{
+            if (!juego_mostrar_cartas_temporalmente(juego, idx1, idx2))
+                return false;
 
-                if (!juego_mostrar_cartas_temporalmente(juego, idx1, idx2))
-                    resultado=JUGADA_ERROR_MEMORIA;
-                else{ 
-                    sleep(2);
-                    resultado = juego_ejecutar_jugada(juego, idx1, idx2);
-                }
-            } else
-                mostrar_mensaje_error(resultado);
+            sleep(2);
+            resultado=juego_ejecutar_jugada(juego, idx1, idx2);
+            if (resultado == JUGADA_FORMO_PAR || resultado == JUGADA_NO_FORMO_PAR)
+                jugada_valida = true;
+            else
+                return false;
         }
     }
-    if (resultado==JUGADA_ERROR_MEMORIA){
-        return false;
-    }    
     
-    mostrar_layout_completo(juego);
-    if (resultado == JUGADA_FORMO_PAR) {
+    if (!mostrar_layout_completo(juego))
+        return false;
+
+    if (resultado == JUGADA_FORMO_PAR)
         printf("¡Acierto! Punto para el jugador actual.\n");
-    } else {
+    else
         printf("No es un acierto. Turno del siguiente jugador.\n");
-    }
     
     return true;
 }
 
-bool mostrar_resultado_final(juego_t *juego) {
-    if (!juego) return false;
-    
-    limpiar_pantalla();
-    int puntaje_j1 = juego_obtener_puntaje(juego, 0);
-    int puntaje_j2 = juego_obtener_puntaje(juego, 1);
-    
-    if (puntaje_j1 > puntaje_j2) {
-        printf("\tGANO EL JUGADOR 1.\n");
-    } else if (puntaje_j2 > puntaje_j1) {
-        printf("\tGANO EL JUGADOR 2.\n");
-    } else {
-        printf("\tEMPATE.\n");
+void mostrar_movimientos(const char* titulo, lista_t* historial) {
+    printf("%s\n", titulo);
+
+    lista_iterador_t* it = lista_iterador_crear(historial);
+    size_t turno = 1;
+    while (lista_iterador_hay_mas_elementos(it)) {
+        movimiento_t* mov = lista_iterador_obtener_actual(it);
+
+        int c1 = mov->carta1 + 1;
+        int c2 = mov->carta2 + 1;
+        char letra = mov->acierto ? 'A' : 'F';
+
+        printf("%zu) %d-%d%c\n", turno, c1, c2, letra);
+
+        turno++;
+        lista_iterador_siguiente(it);
     }
-    
-    return true;
+
+    lista_iterador_destruir(it);
+    printf("\n");
+}
+
+void mostrar_resultado_final(juego_t *juego) {    
+    int puntaje_j1=juego_obtener_puntaje(juego,0);
+    int puntaje_j2=juego_obtener_puntaje(juego,1);
+
+    printf("RESULTADO FINAL\n");
+    printf("Jugador 1: %d puntos\n", puntaje_j1);
+    printf("Jugador 2: %d puntos\n\n", puntaje_j2);
+
+    mostrar_movimientos("=== HISTORIAL JUGADOR 1 ===", juego->jugadores[0].historial_personal);
+    mostrar_movimientos("=== HISTORIAL JUGADOR 2 ===", juego->jugadores[1].historial_personal);
+
+    if (puntaje_j1 > puntaje_j2) printf("¡JUGADOR 1 GANA!\n");
+    else if (puntaje_j2 > puntaje_j1) printf("¡JUGADOR 2 GANA!\n");
+    else printf("¡EMPATE!\n");
 }
 
 bool juego_interactivo(juego_t *juego) {
     if (!juego) return false;
 
     bool terminado = false;
-    bool error_memoria = false;
-
-    while (!terminado && !error_memoria) {
-        // PROCESAR UN TURNO COMPLETO
-        bool turno_ok = procesar_turno(juego);
-        if (!turno_ok) {
-            error_memoria = true;
-        } else {
-            // VERIFICAR SI TERMINÓ EL JUEGO
-            terminado = juego_terminado(juego);
-            if (terminado) {
-                printf("¡Juego terminado!\n");
-            } else {
-                sleep(2);
-            }
+    while (!terminado) {
+        if (!procesar_turno(juego)) {
+            return false;
         }
+
+        if (juego_terminado(juego)){
+            terminado=true;
+            printf("¡Juego terminado!\n");
+        }
+        sleep(2);
     }
 
-    // MOSTRAR RESULTADO FINAL
-    if (!error_memoria) {
-        mostrar_resultado_final(juego);
-    }
-
-    return !error_memoria;
+    limpiar_pantalla();
+    mostrar_resultado_final(juego);
+    return terminado;
 }
 
 bool juego_jugar(juego_t* juego, unsigned int semilla){
@@ -728,111 +678,6 @@ bool juego_jugar(juego_t* juego, unsigned int semilla){
     }
 
     return juego_interactivo(juego);
-}
-
-/*
-bool procesar_jugada(juego_t *juego) {
-    if (!juego || !juego->cuadrilla || !juego->cuadrilla->celdas) {
-        return false;
-    }
-
-    if (!mostrar_layout_completo(juego)) return false;
-    
-    int idx1, idx2;
-    bool exito = pedir_y_validar_par_cartas(juego, &idx1, &idx2);
-    if (!exito) {
-        return false;
-    }
-
-    juego->cuadrilla->celdas[idx1].visible = true;
-    juego->cuadrilla->celdas[idx2].visible = true;
-
-    mostrar_layout_completo(juego);
-    printf("Mostrando cartas seleccionadas...\n\n");
-    sleep(2);
-    
-    bool acierto = es_acierto(juego, idx1, idx2);
-    
-    bool historial_ok = agregar_jugada_historial(juego, idx1, idx2, acierto);
-    if (!historial_ok) {
-        return false;
-    }
-    
-    if (acierto) {
-        juego->cuadrilla->celdas[idx1].encontrada = true;
-        juego->cuadrilla->celdas[idx2].encontrada = true;
-        juego->cuadrilla->celdas[idx1].jugador_descubridor = juego->jugador_actual;
-        juego->cuadrilla->celdas[idx2].jugador_descubridor = juego->jugador_actual;   
-        juego->jugadores[juego->jugador_actual].puntaje++;
-        printf("¡Acierto! Punto para el jugador actual.\n");
-    } else {
-        juego->cuadrilla->celdas[idx1].visible = false;
-        juego->cuadrilla->celdas[idx2].visible = false;
-        juego->jugador_actual = cambiar_indice_jugador(juego->jugador_actual);
-        printf("No es un acierto. Turno del siguiente jugador.\n");
-    }
-    
-    return true;
-}
-
-bool juego_correr(juego_t *juego) {
-    if (!juego) return false;
-
-    bool terminado = false;
-    bool error_memoria = false;
-    bool juego_completado = false;
-
-    while (!terminado && !error_memoria) {
-        bool jugada_exitosa = procesar_jugada(juego);
-        if (!jugada_exitosa)
-            printf("error en jugada\n");
-        
-        if (!jugada_exitosa) {
-            error_memoria = true;
-        } else {
-            juego_completado = juego_terminado(juego);
-            if (juego_completado) {
-                printf("¡Juego terminado!\n");
-                terminado = true;
-            }
-        }
-
-        if (!error_memoria && !juego_completado) {
-            sleep(2);
-        }
-    }
-
-    limpiar_pantalla();
-
-    if (juego->jugadores[0].puntaje > juego->jugadores[1].puntaje){
-        printf("\tGANO EL JUGADOR 1.\n");
-    }else{
-        printf("\tGANO EL JUGADOR 2.\n");
-    }
-
-    return !error_memoria;
-}
-
-bool juego_jugar(juego_t* juego, unsigned int semilla){
-    if (!juego_preparar(juego,semilla)){
-        printf("Error preparando el juego.\n");
-        return false;
-    }
-
-    return juego_correr(juego);
-}*/
-
-void juego_destruir(juego_t* juego){
-    tp1_destruir(juego->pokedex);
-    free(juego->cuadrilla->celdas);
-    free(juego->cuadrilla);
-    free(juego->jugadores);
-
-    if (juego->historial_jugadas) {
-        lista_destruir_todo(juego->historial_jugadas, free);
-    }
-    
-    free(juego);
 }
 
 tp1_t *juego_obtener_pokedex(juego_t *juego) {
@@ -854,8 +699,6 @@ bool juego_establecer_pokedex(juego_t *juego, tp1_t *nueva_pokedex) {
 bool juego_tiene_pokedex(juego_t *juego) {
     return juego && juego->pokedex;
 }
-
-//
 
 int juego_obtener_jugador_actual(const juego_t *juego) {
     return juego ? juego->jugador_actual : -1;
@@ -879,4 +722,31 @@ bool juego_es_carta_visible(const juego_t *juego, int indice_carta) {
 struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_carta) {
     if (!juego || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) return NULL;
     return juego->cuadrilla->celdas[indice_carta].pokemon;
+}
+
+lista_t* juego_obtener_historial_completo(juego_t* juego){
+    if (!juego) return NULL;
+
+    return juego->historial_jugadas;
+}
+
+lista_t* juego_obtener_historial_jugador(juego_t* juego, int jugador) {
+    if (!juego || jugador < 0 || jugador > 1) {
+        return NULL;
+    }
+    
+    return juego->jugadores[jugador].historial_personal;
+}
+
+void juego_destruir(juego_t* juego){
+    tp1_destruir(juego->pokedex);
+    free(juego->cuadrilla->celdas);
+    free(juego->cuadrilla);
+    free(juego->jugadores);
+
+    if (juego->historial_jugadas) {
+        lista_destruir_todo(juego->historial_jugadas, free);
+    }
+    
+    free(juego);
 }

@@ -89,14 +89,6 @@ bool juego_establecer_pokedex(juego_t *juego, tp1_t *nueva_pokedex);
 */
 bool juego_tiene_pokedex(juego_t *juego);
 
-/*
-    Pre: juego no debe ser NULL.
-    
-    Post: Libera toda la memoria asociada al juego.
-*/
-void juego_destruir(juego_t *juego);
-
-
 //////////////////////////////////////////
 
 estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2);
@@ -132,5 +124,14 @@ bool juego_es_carta_visible(const juego_t *juego, int indice_carta);
     Post: Devuelve el pokemon asociado a una carta (NULL si no tiene).
 */
 struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_carta);
+
+void mostrar_resultado_final(juego_t* juego);
+
+/*
+    Pre: juego no debe ser NULL.
+    
+    Post: Libera toda la memoria asociada al juego.
+*/
+void juego_destruir(juego_t *juego);
 
 #endif // JUEGO_H_

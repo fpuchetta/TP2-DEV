@@ -183,7 +183,7 @@ void test_juego_completo_simulado() {
     pa2m_nuevo_grupo("Pruebas de Juego Completo Simulado");
     
     juego_t* juego = juego_crear("normal.csv");
-    juego_preparar(juego, 12345);
+    juego_preparar(juego, 123);
     
     // Test 1: Simular juego completo mediante jugadas automáticas
     int jugadas_realizadas = 0;
@@ -261,6 +261,8 @@ void test_juego_completo_simulado() {
                 "Suma de puntajes (%d + %d = %d) igual a total de pares (%d)", 
                 puntaje_j1, puntaje_j2, puntaje_j1 + puntaje_j2, PAREJAS);
     
+    mostrar_resultado_final(juego);
+
     juego_destruir(juego);
 }
 

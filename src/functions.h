@@ -136,6 +136,8 @@ int interseccion_pokemones(tp1_t *tp, int argc, char **argv);
 */
 int diferencia_pokemones(tp1_t *tp, int argc, char **argv);
 
+/////////
+
 /*
     Pre: -
 
