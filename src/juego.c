@@ -26,10 +26,10 @@ typedef struct mapa{
 }mapa_t;
 
 typedef struct movimiento {
-    int jugador;        // 0 o 1 (índice del jugador)
-    int carta1;         // índice de la primera carta (0-17)
-    int carta2;         // índice de la segunda carta (0-17)
-    bool acierto;       // true si fue acierto
+    int jugador;
+    int carta1;
+    int carta2;
+    bool acierto;
 } movimiento_t;
 
 typedef struct jugador{
@@ -38,7 +38,7 @@ typedef struct jugador{
 }jugador_t;
 
 struct juego{
-    tp1_t *pokedex; // o hash 
+    tp1_t *pokedex;
     mapa_t* cuadrilla;
     jugador_t *jugadores;
     int jugador_actual;
@@ -52,6 +52,43 @@ struct buscar_ctx {
     size_t actual;
     struct pokemon *encontrado;
 };
+
+typedef struct {
+    size_t turno_actual;
+    int numero_jugador;
+    bool es_historial_personal;
+    size_t maximo_a_mostrar;
+    size_t contador_actual;
+} contexto_movimientos_t;
+
+bool callback_mostrar_movimientos(void* elemento, void* contexto) {
+    movimiento_t* mov = (movimiento_t*)elemento;
+    contexto_movimientos_t* ctx = (contexto_movimientos_t*)contexto;
+
+    if (!ctx->es_historial_personal && ctx->contador_actual >= ctx->maximo_a_mostrar) {
+        return false;
+    }
+    
+    int c1 = mov->carta1 + 1;
+    int c2 = mov->carta2 + 1;
+    char letra = mov->acierto ? 'A' : 'F';
+    const char* color_mov = mov->acierto ? COLOR_ACIERTO : COLOR_ERROR;
+
+    if (ctx->es_historial_personal) {
+        printf("%s%zu)%s %d-%d%s%c%s\n", 
+               ANSI_COLOR_WHITE, ctx->turno_actual, ANSI_COLOR_RESET,
+               c1, c2, color_mov, letra, ANSI_COLOR_RESET);
+        ctx->turno_actual++;
+    } else {
+        const char *color_jugador = (mov->jugador == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
+        printf("%sJugador %d%s: %d-%d %s%c%s\n", 
+               color_jugador, mov->jugador + 1, ANSI_COLOR_RESET,
+               c1, c2, color_mov, letra, ANSI_COLOR_RESET);
+        ctx->contador_actual++;
+    }
+    
+    return true;
+}
 
 bool buscar_callback(struct pokemon *p, void *extra) {
     struct buscar_ctx *ctx = extra;
@@ -433,52 +470,37 @@ bool agregar_jugada_historial(juego_t *juego, int idx1, int idx2, bool acierto) 
     return true;
 }
 
-bool mostrar_ultimas_jugadas(juego_t *juego) {
-    if (!juego || !juego->historial_jugadas) return false;
-    
-    if (lista_vacia(juego->historial_jugadas)) return true;
+void mostrar_ultimas_jugadas(juego_t *juego) {
+    if (!juego || !juego->historial_jugadas) return;
+    if (lista_vacia(juego->historial_jugadas)) return;
 
     size_t jugadas_a_mostrar = lista_cantidad(juego->historial_jugadas);
     if (jugadas_a_mostrar > 5) {
         jugadas_a_mostrar = 5;
     }
     
-    lista_iterador_t *iter = lista_iterador_crear(juego->historial_jugadas);
-    if (!iter) return false;
-    
-    size_t contador = 0;
-    while (lista_iterador_hay_mas_elementos(iter) && contador < jugadas_a_mostrar) {
-        movimiento_t *mov = lista_iterador_obtener_actual(iter);
-        if (mov) {
-            const char *color_jugador = (mov->jugador == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
-            char simbolo = mov->acierto ? 'A' : 'F';
-            const char *color_resultado = mov->acierto ? COLOR_ACIERTO : COLOR_ERROR;
+    contexto_movimientos_t contexto = {
+        .turno_actual = 0,
+        .numero_jugador = -1,
+        .es_historial_personal = false,
+        .maximo_a_mostrar = jugadas_a_mostrar,
+        .contador_actual = 0
+    };
 
-            printf("%sJugador %d%s: %d-%d %s%c%s\n", 
-                   color_jugador, mov->jugador + 1, ANSI_COLOR_RESET,
-                   mov->carta1 + 1, mov->carta2 + 1, 
-                   color_resultado, simbolo, ANSI_COLOR_RESET);
-            contador++;
-        }
-        lista_iterador_siguiente(iter);
-    }
-    
-    lista_iterador_destruir(iter);
-    return true;
+    lista_con_cada_elemento(juego->historial_jugadas, callback_mostrar_movimientos, &contexto);
 }
 
-bool mostrar_layout_completo(juego_t *juego) {
+void mostrar_layout_completo(juego_t *juego) {
     limpiar_pantalla();
-    //mostrar_mapa(juego->cuadrilla);
-    mostrar_mapa_debug(juego->cuadrilla);
+    mostrar_mapa(juego->cuadrilla);
+    //mostrar_mapa_debug(juego->cuadrilla);
     printf("\n");
 
     printf("Ultimas jugadas:\n");
-    if (!mostrar_ultimas_jugadas(juego)) return false;
+    mostrar_ultimas_jugadas(juego);
     printf("\n");
 
     fflush(stdout);
-    return true;
 }
 
 bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
@@ -539,17 +561,14 @@ estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
     return JUGADA_VALIDA;
 }
 
-bool juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2) {
-    if (!juego) return false;
+void juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2) {
+    if (!juego) return;
 
-    if (!mostrar_layout_completo(juego))
-        return false;
-
+    mostrar_layout_completo(juego);
     printf("Mostrando cartas seleccionadas...\n\n");
 
     juego->cuadrilla->celdas[carta1].visible = false;
     juego->cuadrilla->celdas[carta2].visible = false;
-    return true;
 }
 
 estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
@@ -574,8 +593,7 @@ estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
 bool procesar_turno(juego_t *juego) {
     if (!juego) return false;
 
-    if (!mostrar_layout_completo(juego))
-        return false;
+    mostrar_layout_completo(juego);
 
     estado_jugada_t resultado=JUGADA_VALIDA;
     bool jugada_valida = false;
@@ -589,10 +607,9 @@ bool procesar_turno(juego_t *juego) {
         if (resultado != JUGADA_VALIDA) {
             mostrar_mensaje_error(resultado);
         }else{
-            if (!juego_mostrar_cartas_temporalmente(juego, idx1, idx2))
-                return false;
-
+            juego_mostrar_cartas_temporalmente(juego, idx1, idx2);
             sleep(2);
+
             resultado=juego_ejecutar_jugada(juego, idx1, idx2);
             if (resultado == JUGADA_FORMO_PAR || resultado == JUGADA_NO_FORMO_PAR)
                 jugada_valida = true;
@@ -601,8 +618,7 @@ bool procesar_turno(juego_t *juego) {
         }
     }
     
-    if (!mostrar_layout_completo(juego))
-        return false;
+    mostrar_layout_completo(juego);
 
     if (resultado == JUGADA_FORMO_PAR)
         printf("¡Acierto! Punto para el jugador actual.\n");
@@ -612,42 +628,50 @@ bool procesar_turno(juego_t *juego) {
     return true;
 }
 
-void mostrar_movimientos(const char* titulo, lista_t* historial) {
-    printf("%s\n", titulo);
+void mostrar_movimientos(const char* titulo, lista_t* historial, int numero_jugador) {
+    printf("%s%s%s\n", ANSI_COLOR_BOLD, titulo, ANSI_COLOR_RESET);
 
-    lista_iterador_t* it = lista_iterador_crear(historial);
-    size_t turno = 1;
-    while (lista_iterador_hay_mas_elementos(it)) {
-        movimiento_t* mov = lista_iterador_obtener_actual(it);
-
-        int c1 = mov->carta1 + 1;
-        int c2 = mov->carta2 + 1;
-        char letra = mov->acierto ? 'A' : 'F';
-
-        printf("%zu) %d-%d%c\n", turno, c1, c2, letra);
-
-        turno++;
-        lista_iterador_siguiente(it);
-    }
-
-    lista_iterador_destruir(it);
+    contexto_movimientos_t contexto = {
+        .turno_actual = 1,
+        .numero_jugador = numero_jugador,
+        .es_historial_personal = true,
+        .maximo_a_mostrar = 0,
+        .contador_actual = 0
+    };
+    
+    lista_con_cada_elemento(historial, callback_mostrar_movimientos, &contexto);
     printf("\n");
 }
 
-void mostrar_resultado_final(juego_t *juego) {    
-    int puntaje_j1=juego_obtener_puntaje(juego,0);
-    int puntaje_j2=juego_obtener_puntaje(juego,1);
+void mostrar_resultado_final(juego_t *juego) {   
+    if(!juego->terminado) return;
+    
+    int puntaje_j1 = juego_obtener_puntaje(juego, 0);
+    int puntaje_j2 = juego_obtener_puntaje(juego, 1);
 
-    printf("RESULTADO FINAL\n");
-    printf("Jugador 1: %d puntos\n", puntaje_j1);
-    printf("Jugador 2: %d puntos\n\n", puntaje_j2);
+    printf("%s%s╔════════════════════════════╗%s\n", ANSI_BG_BLUE, ANSI_COLOR_WHITE, ANSI_COLOR_RESET);
+    printf("%s%s║       RESULTADO FINAL      ║%s\n", ANSI_BG_BLUE, ANSI_COLOR_WHITE, ANSI_COLOR_RESET);
+    printf("%s%s╚════════════════════════════╝%s\n\n", ANSI_BG_BLUE, ANSI_COLOR_WHITE, ANSI_COLOR_RESET);
 
-    mostrar_movimientos("=== HISTORIAL JUGADOR 1 ===", juego->jugadores[0].historial_personal);
-    mostrar_movimientos("=== HISTORIAL JUGADOR 2 ===", juego->jugadores[1].historial_personal);
+    printf("%sJugador 1:%s %s%d puntos%s\n", 
+           COLOR_JUGADOR_1, ANSI_COLOR_RESET,
+           ANSI_COLOR_BOLD, puntaje_j1, ANSI_COLOR_RESET);
+    
+    printf("%sJugador 2:%s %s%d puntos%s\n\n", 
+           COLOR_JUGADOR_2, ANSI_COLOR_RESET,
+           ANSI_COLOR_BOLD, puntaje_j2, ANSI_COLOR_RESET);
 
-    if (puntaje_j1 > puntaje_j2) printf("¡JUGADOR 1 GANA!\n");
-    else if (puntaje_j2 > puntaje_j1) printf("¡JUGADOR 2 GANA!\n");
-    else printf("¡EMPATE!\n");
+    mostrar_movimientos("🎯 HISTORIAL JUGADOR 1 🎯", juego->jugadores[0].historial_personal, 0);
+    mostrar_movimientos("🎯 HISTORIAL JUGADOR 2 🎯", juego->jugadores[1].historial_personal, 1);
+
+    printf("%s%s──────────────────────────────%s\n\n", ANSI_COLOR_WHITE, ANSI_COLOR_BOLD, ANSI_COLOR_RESET);
+    if (puntaje_j1 > puntaje_j2)
+        printf("%s%s%s🎉 ¡JUGADOR 1 GANA! 🎉%s\n", 
+               ANSI_BG_CYAN, ANSI_COLOR_BLACK, ANSI_COLOR_BOLD, ANSI_COLOR_RESET);
+    else
+        printf("%s%s%s🎉 ¡JUGADOR 2 GANA! 🎉%s\n", 
+               ANSI_BG_YELLOW, ANSI_COLOR_BLACK, ANSI_COLOR_BOLD, ANSI_COLOR_RESET);
+    printf("\n");
 }
 
 bool juego_interactivo(juego_t *juego) {

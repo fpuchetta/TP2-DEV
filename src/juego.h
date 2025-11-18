@@ -97,34 +97,45 @@ estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2);
 
 /*
     Pre: juego no debe ser NULL.
+
     Post: Devuelve el jugador actual (0 o 1).
 */
 int juego_obtener_jugador_actual(const juego_t *juego);
 
 /*
     Pre: juego no debe ser NULL.
+
     Post: Devuelve el puntaje del jugador especificado.
 */
 int juego_obtener_puntaje(const juego_t *juego, int jugador);
 
 /*
     Pre: juego no debe ser NULL.
+
     Post: Devuelve true si la carta está descubierta.
 */
 bool juego_es_carta_descubierta(const juego_t *juego, int indice_carta);
 
 /*
     Pre: juego no debe ser NULL.
+
     Post: Devuelve true si la carta está visible temporalmente.
 */
 bool juego_es_carta_visible(const juego_t *juego, int indice_carta);
 
 /*
     Pre: juego no debe ser NULL.
+    
     Post: Devuelve el pokemon asociado a una carta (NULL si no tiene).
 */
 struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_carta);
 
+/*
+    Pre: el juego no debe ser NULL.
+
+    Post: Imprime la informacion del juego una vez terminado.
+          Si el juego no termino no imprime nada.
+*/
 void mostrar_resultado_final(juego_t* juego);
 
 /*
