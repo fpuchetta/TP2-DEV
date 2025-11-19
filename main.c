@@ -7,6 +7,8 @@
 
 #include "tp2.h"
 #include "src/menu.h"
+#include "src/functions.h"
+
 
 int main(int argc, char *argv[])
 {
@@ -18,6 +20,8 @@ int main(int argc, char *argv[])
         printf("Error al crear el tp2\n");
         return -1;
     }
+
+//    ejecutar_menu_interactivo(tp2_obtener_menu(tp2));
 
     if (!tp2_ejecutar(tp2)){
         tp2_destruir_todo(tp2);

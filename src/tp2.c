@@ -159,12 +159,70 @@ tp2_t *tp2_crear(const char *nombre_archivo){
     return tp2;
 }
 
+char obtener_tecla_segura() {
+    char tecla = '\0';
+    // CORREGIDO: Verificar retorno de scanf
+    if (scanf(" %c", &tecla) != 1) {
+        return '\0';
+    }
+    return tecla;
+}
+
+// Ejecución interactiva del menú
+void ejecutar_menu_interactivo(menu_t* menu, juego_t* juego) {
+    menu_navegador_t *nav = menu_navegador_crear(menu, juego);
+    if (!nav) {
+        printf("❌ Error creando navegador\n");
+        menu_destruir_todo(menu);
+        return;
+    }
+
+    while (!menu_navegador_esta_terminado(nav)) {
+        limpiar_pantalla();
+
+        menu_navegador_mostrar(nav);
+
+        char tecla = obtener_tecla_segura();
+        if (tecla == '\0') {
+            printf("\n❌ Error leyendo tecla\n");
+            break;
+        }
+        limpiar_buffer();
+        
+        // Procesar tecla con el navegador
+        menu_navegacion_estado_t resultado = menu_navegador_procesar_tecla(nav, tecla);
+        
+        // Manejar resultado
+        switch (resultado) {
+            case MENU_NAVEGACION_CONTINUAR:
+                // Continuar normalmente
+                break;
+                
+            case MENU_NAVEGACION_TERMINAR:
+                printf("\n🏁 Navegación terminada\n");
+                break;
+                
+            case MENU_NAVEGACION_ERROR:
+                printf("\n❌ Error en la navegación\n");
+                esperar_enter();
+                break;
+        }
+        
+        // Pequeña pausa para que se vea el resultado de las acciones
+        if (resultado == MENU_NAVEGACION_CONTINUAR) {
+            
+        }
+    }
+    
+    printf("\n👋 Prueba del menú completada\n");
+    
+    menu_navegador_destruir(nav);
+}
+
 tp2_t *tp2_ejecutar(tp2_t *tp2){
     if (!tp2) return NULL;
 
-    if (!menu_ejecutar(tp2->menu_tp2,tp2->juego)){
-        return NULL;
-    }
+    ejecutar_menu_interactivo(tp2->menu_tp2, tp2->juego);
 
     return tp2;
 }
@@ -175,4 +233,8 @@ void tp2_destruir_todo(tp2_t *tp2){
     menu_destruir_todo(tp2->menu_tp2);
     juego_destruir(tp2->juego);
     free(tp2);
+}
+
+menu_t *tp2_obtener_menu(tp2_t *tp2){
+    return tp2->menu_tp2;
 }

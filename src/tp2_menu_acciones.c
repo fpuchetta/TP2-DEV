@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <limits.h>
 #include <time.h>
+#include <unistd.h>
+
+#include "ansi.h"
 
 bool accion_cargar_archivo(void *user_data) {
     juego_t *juego = user_data;
@@ -185,6 +188,118 @@ bool accion_mostrar_por_id(void *user_data) {
 
 static unsigned int obtener_semilla_aleatoria() {
     return (unsigned int)time(NULL);
+}
+
+bool validar_formato(const char *linea, int *num1, int *num2) {
+    return parsear_dos_numeros(linea,num1,num2);
+}
+
+bool pedir_y_validar_par_cartas( int jugador_actual, int *idx1, int *idx2) {
+    const char *color_jugador = (jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
+    printf("%sJugador %i%s ingrese dos cartas separadas por espacio: ", 
+           color_jugador, jugador_actual + 1, ANSI_COLOR_RESET);
+    fflush(stdout);
+    
+    char *linea = leer_linea_dinamica();
+    if (!linea)
+        return false;
+    
+    int num1, num2;
+    bool formato_valido = validar_formato(linea, &num1, &num2);
+    if(!formato_valido){
+        *idx1=-1;
+        *idx2=-1;
+        printf("Error: Formato incorrecto. Use: numero espacio numero\n");
+    }else{
+        *idx1 = num1 - 1;
+        *idx2 = num2 - 1;
+    }
+    
+    free(linea);
+    return true;
+}
+
+void mostrar_mensaje_error(estado_jugada_t resultado) {
+    switch (resultado) {
+        case JUGADA_CARTA_YA_DESCUBIERTA:
+            printf("Error: Una de las cartas ya fue descubierta. Intente nuevamente.\n");
+            break;
+        case JUGADA_MISMA_CARTA:
+            printf("Error: No puede seleccionar la misma carta dos veces. Intente nuevamente.\n");
+            break;
+        case JUGADA_CARTA_INVALIDA:
+        default:
+            printf("Error: Por favor elija carta dentro de los limites.\n");
+            break;
+    }
+}
+
+bool procesar_turno(juego_t *juego) {
+    if (!juego) return false;
+
+    mostrar_layout_completo(juego);
+
+    estado_jugada_t resultado=JUGADA_VALIDA;
+    bool jugada_valida = false;
+    int idx1, idx2;
+    
+    while (!jugada_valida) {
+        if (!pedir_y_validar_par_cartas(juego_obtener_jugador_actual(juego), &idx1, &idx2)) {
+            return false;
+        }
+        resultado = juego_validar_jugada(juego, idx1, idx2);
+        if (resultado != JUGADA_VALIDA) {
+            mostrar_mensaje_error(resultado);
+        }else{
+            juego_mostrar_cartas_temporalmente(juego, idx1, idx2);
+            sleep(2);
+
+            resultado=juego_ejecutar_jugada(juego, idx1, idx2);
+            if (resultado == JUGADA_FORMO_PAR || resultado == JUGADA_NO_FORMO_PAR)
+                jugada_valida = true;
+            else
+                return false;
+        }
+    }
+    
+    mostrar_layout_completo(juego);
+
+    if (resultado == JUGADA_FORMO_PAR)
+        printf("¡Acierto! Punto para el jugador actual.\n");
+    else
+        printf("No es un acierto. Turno del siguiente jugador.\n");
+    
+    return true;
+}
+
+bool juego_interactivo(juego_t *juego) {
+    if (!juego) return false;
+
+    bool terminado = false;
+    while (!terminado) {
+        if (!procesar_turno(juego)) {
+            return false;
+        }
+
+        if (juego_terminado(juego)){
+            terminado=true;
+            printf("¡Juego terminado!\n");
+        }
+        sleep(2);
+    }
+
+    limpiar_pantalla();
+    mostrar_resultado_final(juego);
+    return terminado;
+}
+
+bool juego_jugar(juego_t* juego, unsigned int semilla){
+    if (!juego_preparar(juego,semilla)){
+        printf("Error preparando el juego.\n");
+        return false;
+    }
+
+    return juego_interactivo(juego);
 }
 
 bool accion_jugar(void *user_data) {

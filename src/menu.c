@@ -35,6 +35,8 @@ struct menu {
     hash_t *opciones;
     menu_tipo_t tipo;
     estilo_t* estilos;
+    size_t cant_acciones;
+    size_t cant_submenus;
     size_t cant_estilos;
 };
 
@@ -47,6 +49,15 @@ typedef struct {
     void *user_data;
     bool salir;
 } menu_running_t;
+
+struct menu_navegador {
+    menu_t *menu_actual;
+    pila_t *stack_menus;
+    estilo_t estilo_actual;
+    size_t cant_estilos;
+    void *user_data;
+    bool salir;
+};
 
 typedef struct estilo_ctx{
     menu_mostrar_t estilo;
@@ -151,14 +162,26 @@ bool menu_agregar_opcion(menu_t *menu,opcion_t *op){
 /*
     Pre: -
 
+    Post: Devuelve true si la tecla esta reservad para estilos, salir o volver.
+          Devuelve false en caso contrario.
+*/
+bool menu_es_tecla_reservada(char tecla) {
+    return tecla == MENU_TECLA_SALIR || 
+           tecla == MENU_TECLA_VOLVER || 
+           tecla == MENU_TECLA_ESTILOS;
+}
+
+/*
+    Pre: -
+
     Post: Devuelve true si existe una opcion con la tecla pasada por parametro.
           Devuelve false en caso contrario.
 */
-bool menu_existe_opcion(menu_t *m, char tecla){
-    if (!m || !m->opciones || tecla == MENU_TECLA_SALIR || tecla == MENU_TECLA_VOLVER) return false;
+bool menu_existe_opcion(menu_t *menu, char tecla){
+    if (!menu || !menu->opciones) return false;
 
     char tecla_s[2] = { tecla, '\0' };
-    return hash_contiene(m->opciones, tecla_s);
+    return hash_contiene(menu->opciones, tecla_s);
 }
 
 /*
@@ -196,10 +219,20 @@ opcion_t *opcion_crear(const char *nombre, char tecla, opcion_tipo_t tipo, menu_
     return op;
 }
 
-menu_t *menu_crear_submenu(menu_t *padre, char tecla, const char *nombre){
-    if (!padre || !nombre) return NULL;
+/*
+    Pre: -
 
-    if (menu_existe_opcion(padre, tecla)){
+    Post: Devuelve true si la tecla es distinta de algunos caracteres especiales.
+          Devuelve false en caso contrario.
+*/
+bool es_tecla_usable(char tecla) {
+    return (tecla != '\0' && tecla != '\n' && tecla != '\t' && tecla != '\r');
+}
+
+menu_t *menu_crear_submenu(menu_t *padre, char tecla, const char *nombre){
+    if (!padre || !nombre || !es_tecla_usable(tecla) || strlen(nombre) == 0) return NULL;
+
+    if (menu_es_tecla_reservada(tecla) || menu_existe_opcion(padre, tecla)){
         return NULL;
     }
 
@@ -218,15 +251,17 @@ menu_t *menu_crear_submenu(menu_t *padre, char tecla, const char *nombre){
         return NULL;
     }
 
+    padre->cant_submenus++;
+
     return submenu;
 }
 
 bool menu_agregar_accion(menu_t *menu, char tecla, const char *nombre, menu_accion_t accion){
-    if (!menu || !nombre || !accion){
+    if (!menu || !nombre || !accion || !es_tecla_usable(tecla) || strlen(nombre) == 0){
         return false;
     }
 
-    if (menu_existe_opcion(menu, tecla)){
+    if (menu_es_tecla_reservada(tecla) || menu_existe_opcion(menu, tecla)){
         return false;
     }
 
@@ -237,6 +272,8 @@ bool menu_agregar_accion(menu_t *menu, char tecla, const char *nombre, menu_acci
         menu_destruir_opcion(op);
         return false;
     }
+
+    menu->cant_acciones++;
 
     return true;
 }
@@ -257,6 +294,40 @@ bool menu_agregar_estilo(menu_t* menu, menu_mostrar_t estilo){
     menu->cant_estilos = nueva_cant;
 
     return true;
+}
+
+const char *menu_obtener_titulo(menu_t *menu){
+    if (!menu) return NULL;
+
+    return menu->titulo;
+}
+
+size_t menu_cantidad_acciones(menu_t *menu){
+    return (menu) ? menu->cant_acciones : 0;
+}
+
+bool menu_tiene_acciones(menu_t *menu){
+    if (!menu) return false;
+
+    return (menu_cantidad_acciones(menu) > 0) ? true : false;
+}
+
+size_t menu_cantidad_submenus(menu_t *menu){
+    return (menu) ? menu->cant_submenus : 0;
+}
+
+bool menu_tiene_submenus(menu_t *menu){
+    if (!menu) return false;
+
+    return (menu_cantidad_submenus(menu) > 0) ? true : false;
+}
+
+const char *menu_obtener_nombre_opcion(const menu_t *menu, char tecla){
+    if (!menu) return NULL;
+
+    char tecla_s[2]={tecla, '\0'};
+    opcion_t *buscado=hash_buscar(menu->opciones,tecla_s);
+    return (buscado) ? buscado->nombre : NULL;
 }
 
 /*
@@ -297,8 +368,6 @@ bool manejar_tecla_especial(menu_running_t *run, char tecla){
     if (m->tipo == MENU_TIPO_SUBMENU && tecla == MENU_TECLA_VOLVER){
         if (pila_cantidad(run->stack_menus) != 0){
             run->menu_actual = pila_desapilar(run->stack_menus);
-        } else {
-            printf("Ya estás en el menú raíz\n");
         }
         return true;             // ya manejada
     }
@@ -456,6 +525,46 @@ bool menu_ejecutar(menu_t *menu_base, void *user_data){
     return true;
 }
 
+bool menu_sacar_accion(menu_t *menu, char tecla) {
+    if (!menu || !menu->opciones) return false;
+
+    char tecla_s[2] = {tecla, '\0'};
+    opcion_t *opcion = hash_buscar(menu->opciones, tecla_s);
+    if (!opcion || opcion->tipo != OPCION_ACCION) {
+        return false;
+    }
+
+    opcion_t *opcion_quitada = hash_quitar(menu->opciones, tecla_s);
+    if (!opcion_quitada) return false;
+
+    menu_destruir_opcion(opcion_quitada);
+    
+    menu->cant_acciones--;
+
+    return true;
+}
+
+menu_t *menu_sacar_submenu(menu_t *padre, char tecla) {
+    if (!padre || !padre->opciones) return NULL;
+
+    char tecla_s[2] = {tecla, '\0'};
+    opcion_t *opcion = hash_buscar(padre->opciones, tecla_s);
+    if (!opcion || opcion->tipo != OPCION_SUBMENU) {
+        return NULL;
+    }
+
+    opcion_t *opcion_quitada = hash_quitar(padre->opciones, tecla_s);
+    if (!opcion_quitada) return NULL;
+
+    menu_t *submenu = opcion_quitada->submenu;
+
+    menu_destruir_opcion(opcion_quitada);
+
+    padre->cant_submenus--;
+    
+    return submenu;  // Usuario decide si destruirlo o reusarlo
+}
+
 /*
     Pre: -
 
@@ -485,12 +594,11 @@ void menu_destruir(menu_t *menu){
 bool destruir_submenus_cb(char *clave, void *valor, void *ctx){
     opcion_t *op = valor;
 
-    // Si esta opción tiene un submenu, destruirlo recursivamente
     if (op->tipo == OPCION_SUBMENU && op->submenu){
-        menu_destruir_todo(op->submenu);   // DFS
+        menu_destruir_todo(op->submenu);
     }
 
-    return true; // seguir iterando
+    return true;
 }
 
 void menu_destruir_todo(menu_t *menu_base){
@@ -501,4 +609,150 @@ void menu_destruir_todo(menu_t *menu_base){
     }
 
     destruir_menu_simple(menu_base);
+}
+
+///////////////////////////////////
+
+// Creación idéntica a tu inicialización
+menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data) {
+    if (!menu_base) return NULL;
+    
+    menu_navegador_t *nav = calloc(1, sizeof(menu_navegador_t));
+    if (!nav) return NULL;
+    
+    nav->menu_actual = menu_base;
+    nav->estilo_actual.estilo = menu_base->estilos[0].estilo;
+    nav->estilo_actual.id = menu_base->estilos[0].id;
+    nav->cant_estilos = menu_base->cant_estilos;
+    nav->stack_menus = pila_crear();
+    nav->user_data = user_data;
+    nav->salir = false;
+    
+    if (!nav->stack_menus) {
+        free(nav);
+        return NULL;
+    }
+    
+    return nav;
+}
+
+// Réplica de tu actualizar_estilo_actual
+void menu_navegador_actualizar_estilo(menu_navegador_t *nav) {
+    menu_t *m = nav->menu_actual;
+    
+    if (nav->estilo_actual.id == nav->cant_estilos - 1) {
+        nav->estilo_actual.id = 0;
+    } else {    
+        nav->estilo_actual.id++;
+    }
+    nav->estilo_actual.estilo = m->estilos[nav->estilo_actual.id].estilo;
+}
+
+// Réplica de tu manejar_tecla_especial
+bool menu_navegador_manejar_tecla_especial(menu_navegador_t *nav, char tecla) {
+    menu_t *m = nav->menu_actual;
+
+    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_SALIR) {
+        nav->salir = true;
+        return true;
+    }
+
+    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_ESTILOS) {
+        menu_navegador_actualizar_estilo(nav);
+        return true;
+    }
+
+    if (m->tipo == MENU_TIPO_SUBMENU && tecla == MENU_TECLA_VOLVER) {
+        if (pila_cantidad(nav->stack_menus) != 0) {
+            nav->menu_actual = pila_desapilar(nav->stack_menus);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+// Réplica de tu manejar_opcion_normal  
+menu_navegacion_estado_t menu_navegador_manejar_opcion_normal(menu_navegador_t *nav, char tecla) {
+    menu_t *m = nav->menu_actual;
+    opcion_t *op = menu_buscar_opcion(m, tecla);
+
+    if (!op) return MENU_NAVEGACION_CONTINUAR;
+
+    if (op->tipo == OPCION_ACCION) {
+        limpiar_pantalla();
+        bool resultado = op->accion(nav->user_data);
+        esperar_enter();
+        return resultado ? MENU_NAVEGACION_CONTINUAR : MENU_NAVEGACION_ERROR;
+    } else if (op->tipo == OPCION_SUBMENU) {
+        if (!pila_apilar(nav->stack_menus, m)) {
+            nav->salir = true;
+            return MENU_NAVEGACION_ERROR;
+        } else {
+            nav->menu_actual = op->submenu;
+        }
+    }
+    
+    return MENU_NAVEGACION_CONTINUAR;
+}
+
+// Función principal - procesa tecla como en tu código
+menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla) {
+    if (nav->salir) return MENU_NAVEGACION_TERMINAR;
+    
+    bool manejada = menu_navegador_manejar_tecla_especial(nav, tecla);
+    
+    if (!nav->salir && !manejada) {
+        menu_navegacion_estado_t resultado = menu_navegador_manejar_opcion_normal(nav, tecla);
+        if (resultado == MENU_NAVEGACION_ERROR) {
+            return MENU_NAVEGACION_ERROR;
+        }
+    }
+    
+    return nav->salir ? MENU_NAVEGACION_TERMINAR : MENU_NAVEGACION_CONTINUAR;
+}
+
+// Réplica de tu menu_mostrar
+void menu_navegador_mostrar(const menu_navegador_t *nav) {
+    if (!nav || !nav->menu_actual) return;
+
+    menu_t *m = nav->menu_actual;
+    menu_mostrar_t estilo_actual = nav->estilo_actual.estilo;
+
+    printf("\n=== %s ===\n", m->titulo);
+
+    estilo_ctx_t ctx = {.estilo = estilo_actual};
+    if (m->opciones) {
+        hash_iterar(m->opciones, mostrar_opcion_cb, &ctx);
+    }
+
+    if (m->tipo == MENU_TIPO_RAIZ) {
+        estilo_actual(MENU_TECLA_ESTILOS, "Cambiar estilo");
+        estilo_actual(MENU_TECLA_SALIR, "Salir");
+    } else {
+        estilo_actual(MENU_TECLA_VOLVER, "Volver");
+    }
+
+    printf("Opción: ");
+    fflush(stdout);
+}
+
+// Consultas para obtener estado
+menu_t *menu_navegador_obtener_actual(const menu_navegador_t *nav) {
+    return nav ? nav->menu_actual : NULL;
+}
+
+estilo_t menu_navegador_obtener_estilo_actual(const menu_navegador_t *nav) {
+    return nav ? nav->estilo_actual : (estilo_t){0};
+}
+
+bool menu_navegador_esta_terminado(const menu_navegador_t *nav) {
+    return nav ? nav->salir : true;
+}
+
+void menu_navegador_destruir(menu_navegador_t *nav) {
+    if (nav) {
+        pila_destruir(nav->stack_menus);
+        free(nav);
+    }
 }

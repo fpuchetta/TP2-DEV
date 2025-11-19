@@ -1,5 +1,6 @@
 #ifndef TP2_H_
 #define TP2_H_
+#include "menu.h"
 
 #include "stdlib.h"
 

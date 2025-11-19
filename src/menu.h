@@ -12,6 +12,12 @@ typedef struct menu menu_t;
 typedef bool (*menu_accion_t)(void *user_data);
 typedef void (*menu_mostrar_t)(char tecla, char *nombre);
 
+typedef enum {
+    MENU_NAVEGACION_CONTINUAR,
+    MENU_NAVEGACION_TERMINAR,
+    MENU_NAVEGACION_ERROR
+} menu_navegacion_estado_t;
+
 /*
     Pre: -
 
@@ -26,6 +32,7 @@ menu_t *menu_crear_base(const char *titulo, menu_mostrar_t estilo);
     
     Post: Devuelve un puntero a menu_t reservado en memoria con los campos correspondientes a los parametros.
           Devuelve NULL en caso de error.
+          Las teclas 'Q', 'A', 'E' estan restringidas.
 */
 menu_t *menu_crear_submenu(menu_t *padre, char tecla, const char *nombre);
 
@@ -47,6 +54,59 @@ bool menu_agregar_estilo(menu_t* menu, menu_mostrar_t estilo);
 
 /*
     Pre: -
+    
+    Post: Devuelve el título del menu.
+*/
+const char *menu_obtener_titulo(menu_t *menu);
+
+/*
+    Pre: -
+    
+    Post: Devuelve la cantidad de acciones del menu.
+*/
+size_t menu_cantidad_acciones(menu_t *menu);
+
+/*
+    Pre: -
+    
+    Post: Devuelve true si el menu tiene acciones.
+          Devuelve false en caso contrario.
+*/
+bool menu_tiene_acciones(menu_t *menu);
+
+/*
+    Pre: -
+    
+    Post: Devuelve la cantidad de submenus del menu.
+*/
+size_t menu_cantidad_submenus(menu_t *menu);
+
+/*
+    Pre: menu no debe ser NULL.
+    
+    Post: Devuelve true si el menu tiene submenus.
+*/
+bool menu_tiene_submenus(menu_t *menu);
+
+/*
+    Pre: -
+
+    Post: Devuelve true si existe una opcion en el menu
+          con la tecla pasada por parametro.
+          Devuelve false en caso contrario.
+*/
+bool menu_existe_opcion(menu_t *menu, char tecla);
+
+/*
+    Pre: menu no debe ser NULL.
+    
+    Post: Devuelve el nombre de la opción asociada a una tecla.
+          Devuelve NULL si no existe.
+*/
+const char *menu_obtener_nombre_opcion(const menu_t *menu, char tecla);
+
+/*
+    Pre: -
 
     Post: Inicializa los campos para correr un menu y lo ejecuta.
           Devuelve true si se termino de ejecutar correctamente.
@@ -55,9 +115,29 @@ bool menu_agregar_estilo(menu_t* menu, menu_mostrar_t estilo);
 bool menu_ejecutar(menu_t *menu_base, void *user_data);
 
 /*
+    Pre: menu no debe ser NULL.
+    
+    Post: Elimina la acción asociada a la tecla del menu.
+          Libera la memoria de la opción eliminada.
+          Devuelve true si existía y era una acción.
+          Devuelve false si no existía, era submenu o hubo error.
+*/
+bool menu_sacar_accion(menu_t *menu, char tecla);
+
+/*
+    Pre: menu padre no debe ser NULL.
+    
+    Post: Elimina el submenu asociado a la tecla del menu padre.
+          Devuelve el submenu eliminado.
+          Devuelve NULL si no existía, era acción o hubo error.
+*/
+menu_t *menu_sacar_submenu(menu_t* padre, char tecla);
+
+/*
     Pre: -
 
     Post: Libera la memoria para el menu pasado por parametro.
+          No libera los submenus asociados.
 */
 void menu_destruir(menu_t *menu);
 
@@ -68,5 +148,37 @@ void menu_destruir(menu_t *menu);
           Libera todos los submenus asociados y sus opciones.
 */
 void menu_destruir_todo(menu_t *menu_base);
+
+////////////////////////////////////////////
+
+typedef struct menu_navegador menu_navegador_t;
+
+// Réplica exacta de tu menu_running_t pero como tipo opaco
+
+// Resultados que replican tu comportamiento
+
+
+// Creación idéntica a tu inicialización
+menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data);
+
+// Réplica de tu actualizar_estilo_actual
+void menu_navegador_actualizar_estilo(menu_navegador_t *nav);
+// Réplica de tu manejar_tecla_especial
+bool menu_navegador_manejar_tecla_especial(menu_navegador_t *nav, char tecla);
+// Réplica de tu manejar_opcion_normal  
+menu_navegacion_estado_t menu_navegador_manejar_opcion_normal(menu_navegador_t *nav, char tecla);
+
+// Función principal - procesa tecla como en tu código
+menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla);
+
+// Réplica de tu menu_mostrar
+void menu_navegador_mostrar(const menu_navegador_t *nav);
+
+// Consultas para obtener estado
+menu_t *menu_navegador_obtener_actual(const menu_navegador_t *nav);
+
+bool menu_navegador_esta_terminado(const menu_navegador_t *nav);
+
+void menu_navegador_destruir(menu_navegador_t *nav);
 
 #endif // MENU_H_

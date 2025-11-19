@@ -4,14 +4,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#define COLOR_JUGADOR_1 ANSI_COLOR_CYAN
-#define COLOR_JUGADOR_2 ANSI_COLOR_YELLOW
-
-#define COLOR_SELECCIONADO ANSI_COLOR_MAGENTA
-
-#define COLOR_ACIERTO ANSI_COLOR_GREEN
-#define COLOR_ERROR ANSI_COLOR_RED
-
 typedef struct carta{
     struct pokemon *pokemon;
     bool visible;
@@ -413,10 +405,6 @@ int cambiar_indice_jugador(int indice_actual){
     return -1;
 }
 
-bool validar_formato(const char *linea, int *num1, int *num2) {
-    return parsear_dos_numeros(linea,num1,num2);
-}
-
 bool juego_terminado(juego_t *juego) {
     for (int i = 0; i < TOTAL_CARTAS; i++) {
         if (!juego->cuadrilla->celdas[i].encontrada) {
@@ -503,46 +491,6 @@ void mostrar_layout_completo(juego_t *juego) {
     fflush(stdout);
 }
 
-bool pedir_y_validar_par_cartas(juego_t *juego, int *idx1, int *idx2) {
-    const char *color_jugador = (juego->jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
-    printf("%sJugador %i%s ingrese dos cartas separadas por espacio: ", 
-           color_jugador, juego->jugador_actual + 1, ANSI_COLOR_RESET);
-    fflush(stdout);
-    
-    char *linea = leer_linea_dinamica();
-    if (!linea)
-        return false;
-    
-    int num1, num2;
-    bool formato_valido = validar_formato(linea, &num1, &num2);
-    if(!formato_valido){
-        *idx1=-1;
-        *idx2=-1;
-        printf("Error: Formato incorrecto. Use: numero espacio numero\n");
-    }else{
-        *idx1 = num1 - 1;
-        *idx2 = num2 - 1;
-    }
-    
-    free(linea);
-    return true;
-}
-
-void mostrar_mensaje_error(estado_jugada_t resultado) {
-    switch (resultado) {
-        case JUGADA_CARTA_YA_DESCUBIERTA:
-            printf("Error: Una de las cartas ya fue descubierta. Intente nuevamente.\n");
-            break;
-        case JUGADA_MISMA_CARTA:
-            printf("Error: No puede seleccionar la misma carta dos veces. Intente nuevamente.\n");
-            break;
-        case JUGADA_CARTA_INVALIDA:
-        default:
-            printf("Error: Por favor elija carta dentro de los limites.\n");
-            break;
-    }
-}
-
 estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
     if (!juego) return JUGADA_ERROR_MEMORIA;
 
@@ -556,13 +504,14 @@ estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
         juego->cuadrilla->celdas[carta2].encontrada)
         return JUGADA_CARTA_YA_DESCUBIERTA;
     
-    juego->cuadrilla->celdas[carta1].visible=true;
-    juego->cuadrilla->celdas[carta2].visible=true;
     return JUGADA_VALIDA;
 }
 
 void juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2) {
     if (!juego) return;
+
+    juego->cuadrilla->celdas[carta1].visible=true;
+    juego->cuadrilla->celdas[carta2].visible=true;    
 
     mostrar_layout_completo(juego);
     printf("Mostrando cartas seleccionadas...\n\n");
@@ -588,44 +537,6 @@ estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
         juego->jugador_actual = cambiar_indice_jugador(juego->jugador_actual);
 
     return (acierto) ? JUGADA_FORMO_PAR : JUGADA_NO_FORMO_PAR;
-}
-
-bool procesar_turno(juego_t *juego) {
-    if (!juego) return false;
-
-    mostrar_layout_completo(juego);
-
-    estado_jugada_t resultado=JUGADA_VALIDA;
-    bool jugada_valida = false;
-    int idx1, idx2;
-    
-    while (!jugada_valida) {
-        if (!pedir_y_validar_par_cartas(juego, &idx1, &idx2)) {
-            return false;
-        }
-        resultado = juego_validar_jugada(juego, idx1, idx2);
-        if (resultado != JUGADA_VALIDA) {
-            mostrar_mensaje_error(resultado);
-        }else{
-            juego_mostrar_cartas_temporalmente(juego, idx1, idx2);
-            sleep(2);
-
-            resultado=juego_ejecutar_jugada(juego, idx1, idx2);
-            if (resultado == JUGADA_FORMO_PAR || resultado == JUGADA_NO_FORMO_PAR)
-                jugada_valida = true;
-            else
-                return false;
-        }
-    }
-    
-    mostrar_layout_completo(juego);
-
-    if (resultado == JUGADA_FORMO_PAR)
-        printf("¡Acierto! Punto para el jugador actual.\n");
-    else
-        printf("No es un acierto. Turno del siguiente jugador.\n");
-    
-    return true;
 }
 
 void mostrar_movimientos(const char* titulo, lista_t* historial, int numero_jugador) {
@@ -672,36 +583,6 @@ void mostrar_resultado_final(juego_t *juego) {
         printf("%s%s%s🎉 ¡JUGADOR 2 GANA! 🎉%s\n", 
                ANSI_BG_YELLOW, ANSI_COLOR_BLACK, ANSI_COLOR_BOLD, ANSI_COLOR_RESET);
     printf("\n");
-}
-
-bool juego_interactivo(juego_t *juego) {
-    if (!juego) return false;
-
-    bool terminado = false;
-    while (!terminado) {
-        if (!procesar_turno(juego)) {
-            return false;
-        }
-
-        if (juego_terminado(juego)){
-            terminado=true;
-            printf("¡Juego terminado!\n");
-        }
-        sleep(2);
-    }
-
-    limpiar_pantalla();
-    mostrar_resultado_final(juego);
-    return terminado;
-}
-
-bool juego_jugar(juego_t* juego, unsigned int semilla){
-    if (!juego_preparar(juego,semilla)){
-        printf("Error preparando el juego.\n");
-        return false;
-    }
-
-    return juego_interactivo(juego);
 }
 
 tp1_t *juego_obtener_pokedex(juego_t *juego) {

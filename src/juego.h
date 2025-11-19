@@ -3,11 +3,18 @@
 
 #include "tp1.h"
 #include "lista.h"
-#include "cola.h"
 #include "functions.h"
 
 #include "stdlib.h"
 #include "stdbool.h"
+
+#define COLOR_JUGADOR_1 ANSI_COLOR_CYAN
+#define COLOR_JUGADOR_2 ANSI_COLOR_YELLOW
+
+#define COLOR_SELECCIONADO ANSI_COLOR_MAGENTA
+
+#define COLOR_ACIERTO ANSI_COLOR_GREEN
+#define COLOR_ERROR ANSI_COLOR_RED
 
 #define TOTAL_CARTAS 18
 #define PAREJAS 9
@@ -16,7 +23,7 @@
 
 typedef struct juego juego_t;
 
-typedef enum {
+typedef enum estado_jugada{
     JUGADA_ERROR_MEMORIA =-1,
     JUGADA_VALIDA,
     JUGADA_CARTA_INVALIDA,
@@ -91,8 +98,22 @@ bool juego_tiene_pokedex(juego_t *juego);
 
 //////////////////////////////////////////
 
+/*
+    Pre: juego no debe ser NULL.
+         carta1 y carta2 deben haber sido validadas previamente
+         con "juego_validar_jugada".
+
+    Post: Ejecuta una jugada con las cartas especificadas.
+          Devuelve el estado resultante de la jugada.
+*/
 estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2);
 
+/*
+    Pre: juego no debe ser NULL.
+
+    Post: Valida si una jugada es posible con las cartas especificadas.
+          Devuelve el estado de validación de la jugada.
+*/
 estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2);
 
 /*
@@ -138,6 +159,11 @@ struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_car
 */
 void mostrar_resultado_final(juego_t* juego);
 
+//////////////
+void mostrar_layout_completo(juego_t *juego);
+
+void juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2);
+//////////////
 /*
     Pre: juego no debe ser NULL.
     
