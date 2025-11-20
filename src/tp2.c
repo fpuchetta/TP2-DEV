@@ -10,6 +10,11 @@ struct tp2{
     juego_t* juego;
 };
 
+void estilo_titulo_pokemon(char *titulo) {
+    printf(ANSI_COLOR_RED ANSI_COLOR_BOLD);
+    printf("%s", titulo);
+    printf(ANSI_COLOR_RESET "\n");
+}
 
 void estilo_panel_verde_retro(char tecla, char *texto) {
     printf(ANSI_COLOR_GREEN "(" 
@@ -48,17 +53,14 @@ static bool agregar_accion_o_fallar(menu_t *menu_raiz,
 
 bool inicializar_menu_principal(menu_t *menu_principal)
 {
-    // Cargar archivo
     if (!agregar_accion_o_fallar(menu_principal, menu_principal,
                                  'C', "Cargar archivo", accion_cargar_archivo))
         return false;
 
-    // Jugar
     if (!agregar_accion_o_fallar(menu_principal, menu_principal,
                                  'J', "Jugar", accion_jugar))
         return false;
 
-    // Jugar con semilla
     if (!agregar_accion_o_fallar(menu_principal, menu_principal,
                                  'S', "Jugar con semilla", accion_jugar_con_semilla))
         return false;
@@ -108,30 +110,27 @@ menu_t *inicializar_menu_tp2()
 {
     menu_t *menu_principal = menu_crear_base(
         "Menu principal TP2 - Pokedex",
-        estilo_cyber_panel
+        estilo_cyber_panel,estilo_titulo_pokemon
     );
     if (!menu_principal)
         return NULL;
 
-    if (!menu_agregar_estilo(menu_principal,estilo_panel_azul)){
+    if (!menu_agregar_estilo(menu_principal,estilo_panel_azul,estilo_titulo_pokemon)){
         free(menu_principal);
         return NULL;
     }
 
-    if (!menu_agregar_estilo(menu_principal,estilo_panel_verde_retro)){
+    if (!menu_agregar_estilo(menu_principal,estilo_panel_verde_retro,estilo_titulo_pokemon)){
         menu_destruir_todo(menu_principal);
         return NULL;
     }
 
-    // Opciones del menú principal
     if (!inicializar_menu_principal(menu_principal))
         return NULL;
 
-    // Submenú Buscar
     if (!crear_submenu_buscar(menu_principal))
         return NULL;
 
-    // Submenú Mostrar
     if (!crear_submenu_mostrar(menu_principal))
         return NULL;
 
@@ -168,61 +167,43 @@ char obtener_tecla_segura() {
     return tecla;
 }
 
-// Ejecución interactiva del menú
-void ejecutar_menu_interactivo(menu_t* menu, juego_t* juego) {
+bool ejecutar_menu_interactivo(menu_t* menu, juego_t* juego) {
     menu_navegador_t *nav = menu_navegador_crear(menu, juego);
     if (!nav) {
-        printf("❌ Error creando navegador\n");
-        menu_destruir_todo(menu);
-        return;
+        return false;
     }
 
     while (!menu_navegador_esta_terminado(nav)) {
         limpiar_pantalla();
-
         menu_navegador_mostrar(nav);
-
         char tecla = obtener_tecla_segura();
         if (tecla == '\0') {
-            printf("\n❌ Error leyendo tecla\n");
-            break;
+            menu_navegador_destruir(nav);
+            return false;
         }
+
         limpiar_buffer();
+        menu_navegacion_estado_t estado = menu_navegador_procesar_tecla(nav, tecla);
         
-        // Procesar tecla con el navegador
-        menu_navegacion_estado_t resultado = menu_navegador_procesar_tecla(nav, tecla);
-        
-        // Manejar resultado
-        switch (resultado) {
-            case MENU_NAVEGACION_CONTINUAR:
-                // Continuar normalmente
-                break;
-                
-            case MENU_NAVEGACION_TERMINAR:
-                printf("\n🏁 Navegación terminada\n");
-                break;
-                
-            case MENU_NAVEGACION_ERROR:
-                printf("\n❌ Error en la navegación\n");
-                esperar_enter();
-                break;
+        if (estado == MENU_NAVEGACION_ERROR) {
+            menu_navegador_destruir(nav);
+            return false;
         }
         
-        // Pequeña pausa para que se vea el resultado de las acciones
-        if (resultado == MENU_NAVEGACION_CONTINUAR) {
-            
+        if (estado == MENU_NAVEGACION_TERMINAR) {
+            menu_navegador_destruir(nav);
+            return true;
         }
     }
     
-    printf("\n👋 Prueba del menú completada\n");
-    
     menu_navegador_destruir(nav);
+    return true;
 }
 
 tp2_t *tp2_ejecutar(tp2_t *tp2){
     if (!tp2) return NULL;
 
-    ejecutar_menu_interactivo(tp2->menu_tp2, tp2->juego);
+    if (!ejecutar_menu_interactivo(tp2->menu_tp2, tp2->juego)) return NULL;
 
     return tp2;
 }
@@ -233,8 +214,4 @@ void tp2_destruir_todo(tp2_t *tp2){
     menu_destruir_todo(tp2->menu_tp2);
     juego_destruir(tp2->juego);
     free(tp2);
-}
-
-menu_t *tp2_obtener_menu(tp2_t *tp2){
-    return tp2->menu_tp2;
 }

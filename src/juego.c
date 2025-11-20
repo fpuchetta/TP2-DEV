@@ -302,6 +302,7 @@ void mostrar_mapa_debug(mapa_t *mapa) {
                 if (carta->encontrada) {
                     mostrar_carta_descubierta(carta->jugador_descubridor, nombre_abreviado);
                 } else if (carta->visible) {
+                    carta->visible=false;
                     mostrar_carta_visible(nombre_abreviado);
                 } else {
                     printf("[ %3u ] ", carta->pokemon->id);
@@ -333,6 +334,7 @@ void mostrar_mapa(mapa_t *mapa) {
                 if (carta->encontrada) {
                     mostrar_carta_descubierta(carta->jugador_descubridor, nombre_abreviado);
                 } else if (carta->visible) {
+                    carta->visible=false;
                     mostrar_carta_visible(nombre_abreviado);
                 } else {
                     printf("[ %3zu ] ", idx + 1);
@@ -480,8 +482,8 @@ void mostrar_ultimas_jugadas(juego_t *juego) {
 
 void mostrar_layout_completo(juego_t *juego) {
     limpiar_pantalla();
-    mostrar_mapa(juego->cuadrilla);
-    //mostrar_mapa_debug(juego->cuadrilla);
+    //mostrar_mapa(juego->cuadrilla);
+    mostrar_mapa_debug(juego->cuadrilla);
     printf("\n");
 
     printf("Ultimas jugadas:\n");
@@ -504,20 +506,9 @@ estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
         juego->cuadrilla->celdas[carta2].encontrada)
         return JUGADA_CARTA_YA_DESCUBIERTA;
     
-    return JUGADA_VALIDA;
-}
-
-void juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2) {
-    if (!juego) return;
-
     juego->cuadrilla->celdas[carta1].visible=true;
-    juego->cuadrilla->celdas[carta2].visible=true;    
-
-    mostrar_layout_completo(juego);
-    printf("Mostrando cartas seleccionadas...\n\n");
-
-    juego->cuadrilla->celdas[carta1].visible = false;
-    juego->cuadrilla->celdas[carta2].visible = false;
+    juego->cuadrilla->celdas[carta2].visible=true;
+    return JUGADA_VALIDA;
 }
 
 estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
@@ -647,6 +638,8 @@ void juego_destruir(juego_t* juego){
     tp1_destruir(juego->pokedex);
     free(juego->cuadrilla->celdas);
     free(juego->cuadrilla);
+    lista_destruir(juego->jugadores[0].historial_personal);
+    lista_destruir(juego->jugadores[1].historial_personal);
     free(juego->jugadores);
 
     if (juego->historial_jugadas) {

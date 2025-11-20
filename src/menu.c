@@ -1,5 +1,6 @@
 #include "menu.h"
 #include "lista.h"
+#include "cola.h"
 #include "pila.h"
 #include "hash.h"
 #include "functions.h"
@@ -18,8 +19,8 @@ typedef enum {
 } opcion_tipo_t;
 
 typedef struct estilo{
-    size_t id;
-    menu_mostrar_t estilo;
+    menu_mostrar_opciones_t estilo_opciones;
+    menu_mostrar_titulo_t estilo_titulo;
 }estilo_t;
 
 typedef struct opcion {
@@ -34,33 +35,21 @@ struct menu {
     char *titulo;
     hash_t *opciones;
     menu_tipo_t tipo;
-    estilo_t* estilos;
+    cola_t* estilos;
     size_t cant_acciones;
     size_t cant_submenus;
-    size_t cant_estilos;
 };
-
-// Contexto de ejecución (oculto al usuario)
-typedef struct {
-    menu_t *menu_actual;
-    pila_t *stack_menus;
-    estilo_t estilo_actual;
-    size_t cant_estilos;
-    void *user_data;
-    bool salir;
-} menu_running_t;
 
 struct menu_navegador {
     menu_t *menu_actual;
     pila_t *stack_menus;
-    estilo_t estilo_actual;
-    size_t cant_estilos;
+    estilo_t *estilo_actual;
     void *user_data;
     bool salir;
 };
 
 typedef struct estilo_ctx{
-    menu_mostrar_t estilo;
+    menu_mostrar_opciones_t estilo;
 }estilo_ctx_t;
 
 /*
@@ -68,8 +57,48 @@ typedef struct estilo_ctx{
     
     Post: Imprime la opcion por pantalla.
 */
-void mostrar_estilo_default(char tecla, char *nombre){
+void mostrar_estilo_opcion_default(char tecla, char *nombre){
     printf ("%c - %s\n",tecla,nombre);
+}
+
+/*
+    Pre: El titulo no debe ser NULL.
+    
+    Post: Imprime el titulo por pantalla.
+*/
+void mostrar_estilo_titulo_default(char *titulo){
+    printf("\n=== %s ===\n", titulo);
+}
+
+estilo_t *estilo_crear(menu_mostrar_opciones_t eo, menu_mostrar_titulo_t et){
+    estilo_t* e=calloc(1,sizeof(estilo_t));
+    if (!e) return NULL;
+    
+    e->estilo_opciones=eo;
+    e->estilo_titulo=et;
+
+    return e;
+}
+
+bool estilos_inicializar(menu_t *menu, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo){
+    if (!menu) return false;
+
+    menu->estilos=cola_crear();
+    if (!menu->estilos) return false;
+
+    estilo_t *estilo_inicial=estilo_crear(estilo_opciones,estilo_titulo);
+    if (!estilo_inicial){
+        cola_destruir(menu->estilos);
+        return false;
+    }
+
+    if (!cola_encolar(menu->estilos,estilo_inicial)){
+        free(estilo_inicial);
+        cola_destruir(menu->estilos);
+        return false;
+    }
+
+    return true;
 }
 
 /*
@@ -79,7 +108,7 @@ void mostrar_estilo_default(char tecla, char *nombre){
           para un menu_t y lo devuelve.
           Devuelve NULL en caso de error.
 */
-menu_t *menu_crear(const char *titulo, menu_tipo_t tipo, menu_mostrar_t estilo){
+menu_t *menu_crear(const char *titulo, menu_tipo_t tipo, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo){
     menu_t* m=calloc(1,sizeof(menu_t));
     if (!m) return NULL;
 
@@ -90,23 +119,22 @@ menu_t *menu_crear(const char *titulo, menu_tipo_t tipo, menu_mostrar_t estilo){
     }
     m->tipo=tipo;
     if (tipo == MENU_TIPO_RAIZ){
-        m->estilos=calloc(1,sizeof(estilo_t));
-        if (!m->estilos){
+        menu_mostrar_titulo_t estilo_titulo_a_usar= (estilo_titulo) ? estilo_titulo : mostrar_estilo_titulo_default;
+        menu_mostrar_opciones_t estilo_opciones_a_usar= (estilo_opciones) ? estilo_opciones : mostrar_estilo_opcion_default;
+        if (!estilos_inicializar(m,estilo_opciones_a_usar,estilo_titulo_a_usar)){
             free(m->titulo);
             free(m);
+            return NULL;
         }
-        m->estilos[0].estilo=estilo ? estilo : mostrar_estilo_default;
-        m->estilos[0].id=0;
-        m->cant_estilos++;
     }
 
     return m;
 }
 
-menu_t *menu_crear_base(const char *titulo, menu_mostrar_t estilo){
+menu_t *menu_crear_base(const char *titulo, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo){
     if (!titulo) return NULL;
 
-    menu_t *m=menu_crear(titulo,MENU_TIPO_RAIZ,estilo);
+    menu_t *m=menu_crear(titulo,MENU_TIPO_RAIZ,estilo_opciones,estilo_titulo);
     return m;
 }
 
@@ -236,7 +264,7 @@ menu_t *menu_crear_submenu(menu_t *padre, char tecla, const char *nombre){
         return NULL;
     }
 
-    menu_t *submenu=menu_crear(nombre,MENU_TIPO_SUBMENU,NULL);
+    menu_t *submenu=menu_crear(nombre,MENU_TIPO_SUBMENU,NULL,NULL);
     if (!submenu) return NULL;
 
     opcion_t *op=opcion_crear(nombre,tecla,OPCION_SUBMENU,NULL,submenu);
@@ -278,20 +306,19 @@ bool menu_agregar_accion(menu_t *menu, char tecla, const char *nombre, menu_acci
     return true;
 }
 
-bool menu_agregar_estilo(menu_t* menu, menu_mostrar_t estilo){
-    if (!menu || !estilo) return false;
+bool menu_agregar_estilo(menu_t* menu, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo){
+    if (!menu || !estilo_opciones || !estilo_titulo) return false;
     if (menu->tipo != MENU_TIPO_RAIZ) return false;
 
-    size_t nueva_cant = menu->cant_estilos + 1;
+    estilo_t* e=estilo_crear(estilo_opciones,estilo_titulo);
+    if (!e){
+        return false;
+    }
 
-    estilo_t *estilos = realloc(menu->estilos,
-                                      nueva_cant * sizeof(estilo_t));
-    if (!estilos) return false;
-
-    menu->estilos = estilos;
-    menu->estilos[menu->cant_estilos].estilo = estilo;
-    menu->estilos[menu->cant_estilos].id=menu->cant_estilos;
-    menu->cant_estilos = nueva_cant;
+    if (!cola_encolar(menu->estilos,e)){
+        free(e);
+        return false;
+    }
 
     return true;
 }
@@ -322,6 +349,18 @@ bool menu_tiene_submenus(menu_t *menu){
     return (menu_cantidad_submenus(menu) > 0) ? true : false;
 }
 
+size_t menu_cantidad_estilos(menu_t *menu){
+    if (!menu || menu->tipo != MENU_TIPO_RAIZ) return 0;
+
+    return cola_cantidad(menu->estilos);
+}
+
+bool menu_tiene_estilos(menu_t *menu){
+    if (!menu || menu->tipo != MENU_TIPO_RAIZ) return false;
+
+    return (menu_cantidad_estilos(menu) > 1) ? true : false;
+}
+
 const char *menu_obtener_nombre_opcion(const menu_t *menu, char tecla){
     if (!menu) return NULL;
 
@@ -330,50 +369,53 @@ const char *menu_obtener_nombre_opcion(const menu_t *menu, char tecla){
     return (buscado) ? buscado->nombre : NULL;
 }
 
-/*
-    Pre: El parametro "run" no debe ser NULL.
-
-    Post: Actualiza el estilo actual a usar.
-*/
-void actualizar_estilo_actual(menu_running_t *run){
-    menu_t *m=run->menu_actual;
-    
-    if (run->estilo_actual.id == run->cant_estilos-1){
-        run->estilo_actual.id=0;
-    }else{    
-        run->estilo_actual.id++;
-    }
-
-    run->estilo_actual.estilo=m->estilos[run->estilo_actual.id].estilo;
-}
-
-/*
-    Pre: El parametro "run" no debe ser NULL.
-
-    Post: Devuelve true si se puso realizar la accion especial.
-          Devuelve false en caso de error.
-*/
-bool manejar_tecla_especial(menu_running_t *run, char tecla){
-    menu_t *m = run->menu_actual;
-
-    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_SALIR){
-        run->salir = true;
-        return true;             // ya manejada
-    }
-
-    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_ESTILOS){
-        actualizar_estilo_actual(run);
-    }
-
-    if (m->tipo == MENU_TIPO_SUBMENU && tecla == MENU_TECLA_VOLVER){
-        if (pila_cantidad(run->stack_menus) != 0){
-            run->menu_actual = pila_desapilar(run->stack_menus);
-        }
-        return true;             // ya manejada
-    }
-
-    return false;                // no era tecla especial
-}
+//////////////////////////////////
+//
+///*
+//    Pre: El parametro "run" no debe ser NULL.
+//
+//    Post: Actualiza el estilo actual a usar.
+//*/
+//void actualizar_estilo_actual(menu_running_t *run){
+//    menu_t *m=run->menu_actual;
+//    
+//    if (run->estilo_actual.id == run->cant_estilos-1){
+//        run->estilo_actual.id=0;
+//    }else{    
+//        run->estilo_actual.id++;
+//    }
+//
+//    run->estilo_actual.estilo=m->estilos[run->estilo_actual.id].estilo;
+//}
+//
+///*
+//    Pre: El parametro "run" no debe ser NULL.
+//
+//    Post: Devuelve true si se puso realizar la accion especial.
+//          Devuelve false en caso de error.
+//*/
+//bool manejar_tecla_especial(menu_running_t *run, char tecla){
+//    menu_t *m = run->menu_actual;
+//
+//    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_SALIR){
+//        run->salir = true;
+//        return true;             // ya manejada
+//    }
+//
+//    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_ESTILOS){
+//        actualizar_estilo_actual(run);
+//    }
+//
+//    if (m->tipo == MENU_TIPO_SUBMENU && tecla == MENU_TECLA_VOLVER){
+//        if (pila_cantidad(run->stack_menus) != 0){
+//            run->menu_actual = pila_desapilar(run->stack_menus);
+//        }
+//        return true;             // ya manejada
+//    }
+//
+//    return false;                // no era tecla especial
+//}
+//
 
 /*
     Pre: -
@@ -390,33 +432,33 @@ opcion_t *menu_buscar_opcion(menu_t *m, char tecla){
     return op;
 }
 
-/*
-    Pre: El parametro "run" no debe ser NULL.
-
-    Post: Realiza la opcion relacionada a la tecla pasada por parametro.
-*/
-bool manejar_opcion_normal(menu_running_t *run, char tecla){
-    menu_t *m = run->menu_actual;
-    opcion_t *op = menu_buscar_opcion(m, tecla);
-
-    if (!op) return true;
-
-    if (op->tipo == OPCION_ACCION){
-        limpiar_pantalla();
-        bool resultado = op->accion(run->user_data);
-        esperar_enter();
-        return resultado;
-    } else if (op->tipo == OPCION_SUBMENU){
-        if (!pila_apilar(run->stack_menus, m)){
-            run->salir=true;
-            return false;
-        }else{
-            run->menu_actual = op->submenu;
-        }
-    }
-    
-    return true;
-}
+///*
+//    Pre: El parametro "run" no debe ser NULL.
+//
+//    Post: Realiza la opcion relacionada a la tecla pasada por parametro.
+//*/
+//bool manejar_opcion_normal(menu_running_t *run, char tecla){
+//    menu_t *m = run->menu_actual;
+//    opcion_t *op = menu_buscar_opcion(m, tecla);
+//
+//    if (!op) return true;
+//
+//    if (op->tipo == OPCION_ACCION){
+//        limpiar_pantalla();
+//        bool resultado = op->accion(run->user_data);
+//        esperar_enter();
+//        return resultado;
+//    } else if (op->tipo == OPCION_SUBMENU){
+//        if (!pila_apilar(run->stack_menus, m)){
+//            run->salir=true;
+//            return false;
+//        }else{
+//            run->menu_actual = op->submenu;
+//        }
+//    }
+//    
+//    return true;
+//}
 
 /*
     Pre: El ctx pasado por parametro no debe ser NULL.
@@ -434,97 +476,99 @@ bool mostrar_opcion_cb(char *clave, void *valor, void *_ctx){
     return true;
 }
 
-/*
-    Pre: -
-
-    Post: Muestra el menu del campo "menu_actual" del parametro.
-*/
-void menu_mostrar(menu_running_t *run){
-    if (!run || !run->menu_actual) return;
-
-    menu_t *m = run->menu_actual;
-    menu_mostrar_t estilo_actual= run->estilo_actual.estilo;
-
-    printf("\n=== %s ===\n", m->titulo);
-
-    estilo_ctx_t ctx={.estilo=estilo_actual};
-    if (m->opciones){
-        hash_iterar(m->opciones, mostrar_opcion_cb, &ctx);
-    }
-
-    
-    if (m->tipo == MENU_TIPO_RAIZ){
-        estilo_actual(MENU_TECLA_ESTILOS,"Cambiar estilo");
-        estilo_actual(MENU_TECLA_SALIR,"Salir");
-    } else { // MENU_TIPO_SUBMENU
-        estilo_actual(MENU_TECLA_VOLVER,"Volver");
-    }
-
-    printf("Opción: ");
-    fflush(stdout);
-}
-
-/*
-    Pre: El parametro "run" no debe ser NULL.
-
-    Post: Ejecuta el menu por tiempo indefinido
-          hasta que el usuario decida salir.
-*/
-bool menu_correr(menu_running_t *run){
-    while (!run->salir) {
-
-        limpiar_pantalla();
-        menu_mostrar(run);
-
-        int c = getchar();
-        limpiar_buffer();
-
-        if (c == EOF) {
-            run->salir = true;
-            return true;
-        }
-
-        char tecla = (char)c;
-        
-        bool manejada = false;
-        if (!run->salir)
-            manejada = manejar_tecla_especial(run, tecla);
-
-        if (!run->salir && !manejada)
-            if (!manejar_opcion_normal(run, tecla)){
-                return false;
-            }
-    }
-
-    return true;
-}
-
-bool menu_ejecutar(menu_t *menu_base, void *user_data){
-    if (!menu_base) return false;
-    
-    menu_running_t run = {
-        .menu_actual = menu_base,
-        .estilo_actual={.estilo=menu_base->estilos[0].estilo, .id=menu_base->estilos[0].id},
-        .cant_estilos=menu_base->cant_estilos,
-        .stack_menus = pila_crear(),
-        .user_data   = user_data,
-        .salir       = false
-    };
-
-    if (!run.stack_menus){
-        return false;
-    }
-
-    if (!menu_correr(&run)){
-        pila_destruir(run.stack_menus);
-        return false;
-    }
-
-    pila_destruir(run.stack_menus);
-    
-    return true;
-}
-
+///*
+//    Pre: -
+//
+//    Post: Muestra el menu del campo "menu_actual" del parametro.
+//*/
+//void menu_mostrar(menu_running_t *run){
+//    if (!run || !run->menu_actual) return;
+//
+//    menu_t *m = run->menu_actual;
+//    menu_mostrar_t estilo_actual= run->estilo_actual.estilo;
+//
+//    printf("\n=== %s ===\n", m->titulo);
+//
+//    estilo_ctx_t ctx={.estilo=estilo_actual};
+//    if (m->opciones){
+//        hash_iterar(m->opciones, mostrar_opcion_cb, &ctx);
+//    }
+//
+//    
+//    if (m->tipo == MENU_TIPO_RAIZ){
+//        estilo_actual(MENU_TECLA_ESTILOS,"Cambiar estilo");
+//        estilo_actual(MENU_TECLA_SALIR,"Salir");
+//    } else { // MENU_TIPO_SUBMENU
+//        estilo_actual(MENU_TECLA_VOLVER,"Volver");
+//    }
+//
+//    printf("Opción: ");
+//    fflush(stdout);
+//}
+//
+///*
+//    Pre: El parametro "run" no debe ser NULL.
+//
+//    Post: Ejecuta el menu por tiempo indefinido
+//          hasta que el usuario decida salir.
+//*/
+//bool menu_correr(menu_running_t *run){
+//    while (!run->salir) {
+//
+//        limpiar_pantalla();
+//        menu_mostrar(run);
+//
+//        int c = getchar();
+//        limpiar_buffer();
+//
+//        if (c == EOF) {
+//            run->salir = true;
+//            return true;
+//        }
+//
+//        char tecla = (char)c;
+//        
+//        bool manejada = false;
+//        if (!run->salir)
+//            manejada = manejar_tecla_especial(run, tecla);
+//
+//        if (!run->salir && !manejada)
+//            if (!manejar_opcion_normal(run, tecla)){
+//                return false;
+//            }
+//    }
+//
+//    return true;
+//}
+//
+//bool menu_ejecutar(menu_t *menu_base, void *user_data){
+//    if (!menu_base) return false;
+//    
+//    menu_running_t run = {
+//        .menu_actual = menu_base,
+//        .estilo_actual={.estilo=menu_base->estilos[0].estilo, .id=menu_base->estilos[0].id},
+//        .cant_estilos=menu_base->cant_estilos,
+//        .stack_menus = pila_crear(),
+//        .user_data   = user_data,
+//        .salir       = false
+//    };
+//
+//    if (!run.stack_menus){
+//        return false;
+//    }
+//
+//    if (!menu_correr(&run)){
+//        pila_destruir(run.stack_menus);
+//        return false;
+//    }
+//
+//    pila_destruir(run.stack_menus);
+//    
+//    return true;
+//}
+//
+////////////////////////////////////
+//
 bool menu_sacar_accion(menu_t *menu, char tecla) {
     if (!menu || !menu->opciones) return false;
 
@@ -565,6 +609,149 @@ menu_t *menu_sacar_submenu(menu_t *padre, char tecla) {
     return submenu;  // Usuario decide si destruirlo o reusarlo
 }
 
+// Creación idéntica a tu inicialización
+menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data) {
+    if (!menu_base) return NULL;
+    
+    menu_navegador_t *nav = calloc(1, sizeof(menu_navegador_t));
+    if (!nav) return NULL;
+    
+    estilo_t *e_inicial=cola_ver_primero(menu_base->estilos);
+    nav->menu_actual = menu_base;
+    nav->estilo_actual = e_inicial;
+    nav->stack_menus = pila_crear();
+    nav->user_data = user_data;
+    nav->salir = false;
+    
+    if (!nav->stack_menus) {
+        free(nav);
+        return NULL;
+    }
+    
+    return nav;
+}
+
+// Réplica de tu actualizar_estilo_actual
+bool menu_navegador_actualizar_estilo(menu_navegador_t *nav) {
+    menu_t *m = nav->menu_actual;
+    
+    estilo_t *e_final=cola_desencolar(m->estilos);
+    nav->estilo_actual=cola_ver_primero(m->estilos);
+
+    if (!cola_encolar(m->estilos,e_final)){
+        return false;
+    }
+
+    return true;
+}
+
+bool menu_navegador_manejar_tecla_especial(menu_navegador_t *nav, char tecla) {
+    menu_t *m = nav->menu_actual;
+
+    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_SALIR) {
+        nav->salir = true;
+        return MENU_NAVEGACION_CONTINUAR;
+    }
+
+    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_ESTILOS) {
+        if (!menu_navegador_actualizar_estilo(nav)) {
+            nav->salir = true;
+            return MENU_NAVEGACION_ERROR;
+        }
+        return MENU_NAVEGACION_CONTINUAR;
+    }
+
+    if (m->tipo == MENU_TIPO_SUBMENU && tecla == MENU_TECLA_VOLVER) {
+        if (pila_cantidad(nav->stack_menus) != 0) {
+            nav->menu_actual = pila_desapilar(nav->stack_menus);
+        }
+        return MENU_NAVEGACION_CONTINUAR;
+    }
+
+    return MENU_NAVEGACION_CONTINUAR;
+}
+
+menu_navegacion_estado_t menu_navegador_manejar_opcion_normal(menu_navegador_t *nav, char tecla) {
+    menu_t *m = nav->menu_actual;
+    opcion_t *op = menu_buscar_opcion(m, tecla);
+
+    if (!op) return MENU_NAVEGACION_CONTINUAR;
+
+    if (op->tipo == OPCION_ACCION) {
+        bool resultado = op->accion(nav->user_data);
+        return resultado ? MENU_NAVEGACION_CONTINUAR : MENU_NAVEGACION_ERROR;
+    } else if (op->tipo == OPCION_SUBMENU) {
+        if (!pila_apilar(nav->stack_menus, m)) {
+            nav->salir = true;
+            return MENU_NAVEGACION_ERROR;
+        } else {
+            nav->menu_actual = op->submenu;
+        }
+    }
+    
+    return MENU_NAVEGACION_CONTINUAR;
+}
+
+// Función principal - procesa tecla como en tu código
+menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla) {
+    if (!nav) return MENU_NAVEGACION_ERROR;
+    if (nav->salir) return MENU_NAVEGACION_TERMINAR;
+    
+    menu_navegacion_estado_t resultado_especial = menu_navegador_manejar_tecla_especial(nav, tecla);
+    if (resultado_especial == MENU_NAVEGACION_ERROR) {
+        return MENU_NAVEGACION_ERROR;
+    }
+    
+    if (!nav->salir && resultado_especial == MENU_NAVEGACION_CONTINUAR) {
+        menu_navegacion_estado_t resultado_normal = menu_navegador_manejar_opcion_normal(nav, tecla);
+        if (resultado_normal == MENU_NAVEGACION_ERROR) {
+            return MENU_NAVEGACION_ERROR;
+        }
+    }
+    
+    return nav->salir ? MENU_NAVEGACION_TERMINAR : MENU_NAVEGACION_CONTINUAR;
+}
+
+// Réplica de tu menu_mostrar
+void menu_navegador_mostrar(const menu_navegador_t *nav) {
+    if (!nav || !nav->menu_actual) return;
+
+    menu_t *m = nav->menu_actual;
+    estilo_t *estilo_actual = nav->estilo_actual;
+
+    estilo_actual->estilo_titulo(m->titulo);
+
+    estilo_ctx_t ctx = {.estilo = estilo_actual->estilo_opciones};
+    if (m->opciones) {
+        hash_iterar(m->opciones, mostrar_opcion_cb, &ctx);
+    }
+
+    if (m->tipo == MENU_TIPO_RAIZ) {
+        estilo_actual->estilo_opciones(MENU_TECLA_ESTILOS, "Cambiar estilo");
+        estilo_actual->estilo_opciones(MENU_TECLA_SALIR, "Salir");
+    } else {
+        estilo_actual->estilo_opciones(MENU_TECLA_VOLVER, "Volver");
+    }
+
+    printf("Opción: ");
+    fflush(stdout);
+}
+
+menu_t *menu_navegador_obtener_actual(const menu_navegador_t *nav) {
+    return nav ? nav->menu_actual : NULL;
+}
+
+bool menu_navegador_esta_terminado(const menu_navegador_t *nav) {
+    return nav ? nav->salir : true;
+}
+
+void menu_navegador_destruir(menu_navegador_t *nav) {
+    if (nav) {
+        pila_destruir(nav->stack_menus);
+        free(nav);
+    }
+}
+
 /*
     Pre: -
 
@@ -577,7 +764,11 @@ void destruir_menu_simple(menu_t *menu){
         hash_destruir_todo(menu->opciones, menu_destruir_opcion);
     }
 
-    free(menu->estilos);
+    while (cola_cantidad(menu->estilos) != 0) {
+        estilo_t *e = cola_desencolar(menu->estilos);
+        free(e);
+    }
+    cola_destruir(menu->estilos);
     free(menu->titulo);
     free(menu);
 }
@@ -613,146 +804,4 @@ void menu_destruir_todo(menu_t *menu_base){
 
 ///////////////////////////////////
 
-// Creación idéntica a tu inicialización
-menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data) {
-    if (!menu_base) return NULL;
-    
-    menu_navegador_t *nav = calloc(1, sizeof(menu_navegador_t));
-    if (!nav) return NULL;
-    
-    nav->menu_actual = menu_base;
-    nav->estilo_actual.estilo = menu_base->estilos[0].estilo;
-    nav->estilo_actual.id = menu_base->estilos[0].id;
-    nav->cant_estilos = menu_base->cant_estilos;
-    nav->stack_menus = pila_crear();
-    nav->user_data = user_data;
-    nav->salir = false;
-    
-    if (!nav->stack_menus) {
-        free(nav);
-        return NULL;
-    }
-    
-    return nav;
-}
 
-// Réplica de tu actualizar_estilo_actual
-void menu_navegador_actualizar_estilo(menu_navegador_t *nav) {
-    menu_t *m = nav->menu_actual;
-    
-    if (nav->estilo_actual.id == nav->cant_estilos - 1) {
-        nav->estilo_actual.id = 0;
-    } else {    
-        nav->estilo_actual.id++;
-    }
-    nav->estilo_actual.estilo = m->estilos[nav->estilo_actual.id].estilo;
-}
-
-// Réplica de tu manejar_tecla_especial
-bool menu_navegador_manejar_tecla_especial(menu_navegador_t *nav, char tecla) {
-    menu_t *m = nav->menu_actual;
-
-    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_SALIR) {
-        nav->salir = true;
-        return true;
-    }
-
-    if (m->tipo == MENU_TIPO_RAIZ && tecla == MENU_TECLA_ESTILOS) {
-        menu_navegador_actualizar_estilo(nav);
-        return true;
-    }
-
-    if (m->tipo == MENU_TIPO_SUBMENU && tecla == MENU_TECLA_VOLVER) {
-        if (pila_cantidad(nav->stack_menus) != 0) {
-            nav->menu_actual = pila_desapilar(nav->stack_menus);
-        }
-        return true;
-    }
-
-    return false;
-}
-
-// Réplica de tu manejar_opcion_normal  
-menu_navegacion_estado_t menu_navegador_manejar_opcion_normal(menu_navegador_t *nav, char tecla) {
-    menu_t *m = nav->menu_actual;
-    opcion_t *op = menu_buscar_opcion(m, tecla);
-
-    if (!op) return MENU_NAVEGACION_CONTINUAR;
-
-    if (op->tipo == OPCION_ACCION) {
-        limpiar_pantalla();
-        bool resultado = op->accion(nav->user_data);
-        esperar_enter();
-        return resultado ? MENU_NAVEGACION_CONTINUAR : MENU_NAVEGACION_ERROR;
-    } else if (op->tipo == OPCION_SUBMENU) {
-        if (!pila_apilar(nav->stack_menus, m)) {
-            nav->salir = true;
-            return MENU_NAVEGACION_ERROR;
-        } else {
-            nav->menu_actual = op->submenu;
-        }
-    }
-    
-    return MENU_NAVEGACION_CONTINUAR;
-}
-
-// Función principal - procesa tecla como en tu código
-menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla) {
-    if (nav->salir) return MENU_NAVEGACION_TERMINAR;
-    
-    bool manejada = menu_navegador_manejar_tecla_especial(nav, tecla);
-    
-    if (!nav->salir && !manejada) {
-        menu_navegacion_estado_t resultado = menu_navegador_manejar_opcion_normal(nav, tecla);
-        if (resultado == MENU_NAVEGACION_ERROR) {
-            return MENU_NAVEGACION_ERROR;
-        }
-    }
-    
-    return nav->salir ? MENU_NAVEGACION_TERMINAR : MENU_NAVEGACION_CONTINUAR;
-}
-
-// Réplica de tu menu_mostrar
-void menu_navegador_mostrar(const menu_navegador_t *nav) {
-    if (!nav || !nav->menu_actual) return;
-
-    menu_t *m = nav->menu_actual;
-    menu_mostrar_t estilo_actual = nav->estilo_actual.estilo;
-
-    printf("\n=== %s ===\n", m->titulo);
-
-    estilo_ctx_t ctx = {.estilo = estilo_actual};
-    if (m->opciones) {
-        hash_iterar(m->opciones, mostrar_opcion_cb, &ctx);
-    }
-
-    if (m->tipo == MENU_TIPO_RAIZ) {
-        estilo_actual(MENU_TECLA_ESTILOS, "Cambiar estilo");
-        estilo_actual(MENU_TECLA_SALIR, "Salir");
-    } else {
-        estilo_actual(MENU_TECLA_VOLVER, "Volver");
-    }
-
-    printf("Opción: ");
-    fflush(stdout);
-}
-
-// Consultas para obtener estado
-menu_t *menu_navegador_obtener_actual(const menu_navegador_t *nav) {
-    return nav ? nav->menu_actual : NULL;
-}
-
-estilo_t menu_navegador_obtener_estilo_actual(const menu_navegador_t *nav) {
-    return nav ? nav->estilo_actual : (estilo_t){0};
-}
-
-bool menu_navegador_esta_terminado(const menu_navegador_t *nav) {
-    return nav ? nav->salir : true;
-}
-
-void menu_navegador_destruir(menu_navegador_t *nav) {
-    if (nav) {
-        pila_destruir(nav->stack_menus);
-        free(nav);
-    }
-}

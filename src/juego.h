@@ -161,8 +161,6 @@ void mostrar_resultado_final(juego_t* juego);
 
 //////////////
 void mostrar_layout_completo(juego_t *juego);
-
-void juego_mostrar_cartas_temporalmente(juego_t *juego, int carta1, int carta2);
 //////////////
 /*
     Pre: juego no debe ser NULL.

@@ -30,6 +30,5 @@ int main(int argc, char *argv[])
     }
 
     tp2_destruir_todo(tp2);
-
     return 0;
 }

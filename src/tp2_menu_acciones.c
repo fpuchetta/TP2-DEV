@@ -8,6 +8,7 @@
 #include "ansi.h"
 
 bool accion_cargar_archivo(void *user_data) {
+    limpiar_pantalla();
     juego_t *juego = user_data;
     
     if (juego_tiene_pokedex(juego)) {
@@ -19,11 +20,11 @@ bool accion_cargar_archivo(void *user_data) {
         
         if (c != 's' && c != 'S') {
             printf("Recarga cancelada.\n");
+            esperar_enter();
             return true;
         }
         
         printf("Recargando archivo...\n");
-        // Usar la función pública en lugar de acceder directamente
         juego_establecer_pokedex(juego, NULL);
     }
     
@@ -37,12 +38,14 @@ bool accion_cargar_archivo(void *user_data) {
     if (!nueva_pokedex) {
         printf("Error cargando archivo '%s'\n", ruta);
         free(ruta);
+        esperar_enter();
         return false;
     }
     
     bool exito = juego_establecer_pokedex(juego, nueva_pokedex);
     printf("Archivo '%s' cargado exitosamente.\n", ruta);
     free(ruta);
+    esperar_enter();
     return exito;
 }
 
@@ -54,10 +57,12 @@ void imprimir_pokemon(const struct pokemon *pokemon)
 }
 
 bool accion_buscar_por_nombre(void *user_data) {
+    limpiar_pantalla();
     juego_t *juego = user_data;
 
     if (!juego_tiene_pokedex(juego)) {
         printf("Error: No hay archivo cargado.\n");
+        esperar_enter();
         return true;
     }
 
@@ -67,29 +72,32 @@ bool accion_buscar_por_nombre(void *user_data) {
     char *nombre = leer_linea_dinamica();
     if (!nombre) {
         printf("Error leyendo nombre.\n");
+        esperar_enter();
         return false;
     }
 
-    // Usar función de acceso
     tp1_t *pokedex = juego_obtener_pokedex(juego);
     struct pokemon *p = tp1_buscar_nombre(pokedex, nombre);
-
     if (!p) {
         printf("No existe un Pokémon con ese nombre.\n");
         free(nombre);
+        esperar_enter();
         return true;
     }
 
     imprimir_pokemon(p);
     free(nombre);
+    esperar_enter();
     return true;
 }
 
 bool accion_buscar_por_id(void *user_data) {
+    limpiar_pantalla();
     juego_t *juego = user_data;
 
     if (!juego_tiene_pokedex(juego)) {
         printf("Error: No hay archivo cargado.\n");
+        esperar_enter();
         return true;
     }
 
@@ -99,6 +107,7 @@ bool accion_buscar_por_id(void *user_data) {
     char *linea = leer_linea_dinamica();
     if (!linea) {
         printf("Error leyendo id.\n");
+        esperar_enter();
         return false;
     }
 
@@ -112,10 +121,12 @@ bool accion_buscar_por_id(void *user_data) {
     struct pokemon *p = tp1_buscar_id(pokedex, id);
     if (!p) {
         printf("No existe un Pokémon con ID %d.\n", id);
+        esperar_enter();
         return true;
     }
 
     imprimir_pokemon(p);
+    esperar_enter();
     return true;
 }
 
@@ -131,10 +142,12 @@ bool recolectar_pokemones(struct pokemon *p, void *extra)
 }
 
 bool accion_mostrar_por_nombre(void *user_data) {
+    limpiar_pantalla();
     juego_t *juego = user_data;
     
     if (!juego_tiene_pokedex(juego)) {
         printf("Error: No hay archivo cargado.\n");
+        esperar_enter();
         return true;
     }
 
@@ -160,6 +173,7 @@ bool accion_mostrar_por_nombre(void *user_data) {
 	}
 
 	free(tmp);
+    esperar_enter();
     return true;
 }
 
@@ -171,10 +185,12 @@ bool pokedex_mostrar_nombres(struct pokemon *pokemon_a_evaluar, void *ctx)
 }
 
 bool accion_mostrar_por_id(void *user_data) {
+    limpiar_pantalla();
     juego_t *juego = user_data;
     
     if (!juego_tiene_pokedex(juego)) {
         printf("Error: No hay archivo cargado.\n");
+        esperar_enter();
         return true;
     }
 
@@ -183,6 +199,7 @@ bool accion_mostrar_por_id(void *user_data) {
 	if (iterados != tp1_cantidad(pokedex))
 		return false;
 
+    esperar_enter();
     return true;
 }
 
@@ -251,7 +268,8 @@ bool procesar_turno(juego_t *juego) {
         if (resultado != JUGADA_VALIDA) {
             mostrar_mensaje_error(resultado);
         }else{
-            juego_mostrar_cartas_temporalmente(juego, idx1, idx2);
+            mostrar_layout_completo(juego);
+            printf("Mostrando cartas seleccionadas...\n\n");
             sleep(2);
 
             resultado=juego_ejecutar_jugada(juego, idx1, idx2);
@@ -290,12 +308,14 @@ bool juego_interactivo(juego_t *juego) {
 
     limpiar_pantalla();
     mostrar_resultado_final(juego);
+    esperar_enter();
     return terminado;
 }
 
 bool juego_jugar(juego_t* juego, unsigned int semilla){
     if (!juego_preparar(juego,semilla)){
         printf("Error preparando el juego.\n");
+        esperar_enter();
         return false;
     }
 
@@ -303,6 +323,7 @@ bool juego_jugar(juego_t* juego, unsigned int semilla){
 }
 
 bool accion_jugar(void *user_data) {
+    limpiar_pantalla();
     juego_t *juego = user_data;
     
     if (!juego_tiene_pokedex(juego)) {
@@ -314,6 +335,7 @@ bool accion_jugar(void *user_data) {
 }
 
 bool accion_jugar_con_semilla(void *user_data) {
+    limpiar_pantalla();
     juego_t *juego = user_data;
     
     if (!juego_tiene_pokedex(juego)) {

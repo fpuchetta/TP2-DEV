@@ -10,7 +10,8 @@
 
 typedef struct menu menu_t;
 typedef bool (*menu_accion_t)(void *user_data);
-typedef void (*menu_mostrar_t)(char tecla, char *nombre);
+typedef void (*menu_mostrar_opciones_t)(char tecla, char *nombre);
+typedef void (*menu_mostrar_titulo_t)(char *titulo);
 
 typedef enum {
     MENU_NAVEGACION_CONTINUAR,
@@ -25,7 +26,7 @@ typedef enum {
           inicializados.
           Devuelve NULL en caso de error.
 */
-menu_t *menu_crear_base(const char *titulo, menu_mostrar_t estilo);
+menu_t *menu_crear_base(const char *titulo, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo);
 
 /*
     Pre: -
@@ -50,7 +51,7 @@ bool menu_agregar_accion(menu_t *menu, char tecla, const char *nombre, menu_acci
     Post: Devuelve true si se pudo agregar el estilo al menu pasado por parametro.
           Devuelve false en caso de error.
 */
-bool menu_agregar_estilo(menu_t* menu, menu_mostrar_t estilo);
+bool menu_agregar_estilo(menu_t* menu, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo);
 
 /*
     Pre: -
@@ -91,11 +92,27 @@ bool menu_tiene_submenus(menu_t *menu);
 /*
     Pre: -
 
+    Post: Devuelve la cantidad de estilos que posee el menu.
+          Si el menu no es de tipo raiz devuelve cero.
+*/
+size_t menu_cantidad_estilos(menu_t *menu);
+
+/*
+    Pre: menu no debe ser NULL.
+    
+    Post: Devuelve true si el menu tiene estilos.
+*/
+bool menu_tiene_estilos(menu_t *menu);
+
+/*
+    Pre: -
+
     Post: Devuelve true si existe una opcion en el menu
           con la tecla pasada por parametro.
           Devuelve false en caso contrario.
 */
 bool menu_existe_opcion(menu_t *menu, char tecla);
+
 
 /*
     Pre: menu no debe ser NULL.
@@ -160,13 +177,6 @@ typedef struct menu_navegador menu_navegador_t;
 
 // Creación idéntica a tu inicialización
 menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data);
-
-// Réplica de tu actualizar_estilo_actual
-void menu_navegador_actualizar_estilo(menu_navegador_t *nav);
-// Réplica de tu manejar_tecla_especial
-bool menu_navegador_manejar_tecla_especial(menu_navegador_t *nav, char tecla);
-// Réplica de tu manejar_opcion_normal  
-menu_navegacion_estado_t menu_navegador_manejar_opcion_normal(menu_navegador_t *nav, char tecla);
 
 // Función principal - procesa tecla como en tu código
 menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla);
