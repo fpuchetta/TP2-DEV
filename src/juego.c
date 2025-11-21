@@ -36,6 +36,7 @@ struct juego{
     int jugador_actual;
     lista_t *historial_jugadas;
     int semilla;
+    bool preparado;
     bool terminado;
 };
 
@@ -236,6 +237,13 @@ juego_t *juego_crear(const char* archivo){
             free(juego);
             return NULL;
         }
+
+        if (tp1_cantidad(juego->pokedex) < PAREJAS){
+            printf("cantidad invalida (%li)\n",tp1_cantidad(juego->pokedex));
+            tp1_destruir(juego->pokedex);
+            free(juego);
+            return NULL;
+        }
     }
 
     juego->cuadrilla=inicializar_mapa();
@@ -351,6 +359,8 @@ void mostrar_mapa(mapa_t *mapa) {
           Devuelve true si se reinició correctamente, false en caso de error.
 */
 bool juego_reiniciar(juego_t *juego, unsigned int semilla) {
+    if (!juego) return false;
+
     for (int i = 0; i < TOTAL_CARTAS; i++) {
         juego->cuadrilla->celdas[i].visible = false;
         juego->cuadrilla->celdas[i].encontrada = false;
@@ -378,10 +388,13 @@ bool juego_reiniciar(juego_t *juego, unsigned int semilla) {
     }
     
     juego->terminado = false;
+    juego->preparado = true;
     return true;
 }
 
 bool juego_preparar(juego_t *juego, unsigned int semilla) {
+    if (!juego) return false;
+
     srand(semilla);
 
     if (juego->terminado) {
@@ -393,6 +406,7 @@ bool juego_preparar(juego_t *juego, unsigned int semilla) {
     }
 
     juego->semilla = (int)semilla;
+    juego->preparado = true;
     return true;
 }
 
@@ -407,7 +421,15 @@ int cambiar_indice_jugador(int indice_actual){
     return -1;
 }
 
+bool juego_esta_preparado(const juego_t *juego) {
+    return juego && juego->preparado;
+}
+
 bool juego_terminado(juego_t *juego) {
+    if (!juego || !juego_esta_preparado(juego)){
+        return true;
+    }
+
     for (int i = 0; i < TOTAL_CARTAS; i++) {
         if (!juego->cuadrilla->celdas[i].encontrada) {
             return false;
@@ -481,7 +503,11 @@ void mostrar_ultimas_jugadas(juego_t *juego) {
 }
 
 void mostrar_layout_completo(juego_t *juego) {
-    limpiar_pantalla();
+    if (!juego || !juego_esta_preparado(juego)) {
+        return;
+    }
+
+    //limpiar_pantalla();
     //mostrar_mapa(juego->cuadrilla);
     mostrar_mapa_debug(juego->cuadrilla);
     printf("\n");
@@ -496,6 +522,9 @@ void mostrar_layout_completo(juego_t *juego) {
 estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
     if (!juego) return JUGADA_ERROR_MEMORIA;
 
+    if (!juego_esta_preparado(juego))
+        return JUGADA_ERROR_MEMORIA;
+        
     if (carta1 < 0 || carta1 >= TOTAL_CARTAS || carta2 < 0 || carta2 >= TOTAL_CARTAS)
         return JUGADA_CARTA_INVALIDA;
 
@@ -512,6 +541,11 @@ estado_jugada_t juego_validar_jugada(juego_t *juego, int carta1, int carta2) {
 }
 
 estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
+    if (!juego) return JUGADA_ERROR_MEMORIA;
+    
+    if (!juego_esta_preparado(juego))
+        return JUGADA_ERROR_MEMORIA;    
+    
     bool acierto = es_acierto(juego, carta1, carta2);
     
     bool historial_ok = agregar_jugada_historial(juego, carta1, carta2, acierto);
@@ -524,9 +558,11 @@ estado_jugada_t juego_ejecutar_jugada(juego_t *juego, int carta1, int carta2) {
         juego->cuadrilla->celdas[carta1].jugador_descubridor = juego->jugador_actual;
         juego->cuadrilla->celdas[carta2].jugador_descubridor = juego->jugador_actual;
         juego->jugadores[juego->jugador_actual].puntaje++;
-    } else
+    } else{
         juego->jugador_actual = cambiar_indice_jugador(juego->jugador_actual);
-
+        juego->cuadrilla->celdas[carta1].visible = false;
+        juego->cuadrilla->celdas[carta2].visible = false;
+    }
     return (acierto) ? JUGADA_FORMO_PAR : JUGADA_NO_FORMO_PAR;
 }
 
@@ -546,7 +582,8 @@ void mostrar_movimientos(const char* titulo, lista_t* historial, int numero_juga
 }
 
 void mostrar_resultado_final(juego_t *juego) {   
-    if(!juego->terminado) return;
+    if(!juego || !juego_esta_preparado(juego) || !juego->terminado) 
+        return;
     
     int puntaje_j1 = juego_obtener_puntaje(juego, 0);
     int puntaje_j2 = juego_obtener_puntaje(juego, 1);
@@ -582,7 +619,7 @@ tp1_t *juego_obtener_pokedex(juego_t *juego) {
 }
 
 bool juego_establecer_pokedex(juego_t *juego, tp1_t *nueva_pokedex) {
-    if (!juego) return false;
+    if (!juego || !nueva_pokedex) return false;
 
     if (juego->pokedex) {
         tp1_destruir(juego->pokedex);
@@ -597,26 +634,37 @@ bool juego_tiene_pokedex(juego_t *juego) {
 }
 
 int juego_obtener_jugador_actual(const juego_t *juego) {
-    return juego ? juego->jugador_actual : -1;
+    if (!juego || !juego_esta_preparado(juego))
+        return -1;
+    
+    return juego->jugador_actual;
 }
 
 int juego_obtener_puntaje(const juego_t *juego, int jugador) {
-    if (!juego || jugador < 0 || jugador > 1) return -1;
+    if (!juego || !juego_esta_preparado(juego) || jugador < 0 || jugador > 1) 
+        return -1;
+    
     return juego->jugadores[jugador].puntaje;
 }
 
 bool juego_es_carta_descubierta(const juego_t *juego, int indice_carta) {
-    if (!juego || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) return false;
+    if (!juego || !juego_esta_preparado(juego) || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) 
+        return false;
+    
     return juego->cuadrilla->celdas[indice_carta].encontrada;
 }
 
 bool juego_es_carta_visible(const juego_t *juego, int indice_carta) {
-    if (!juego || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) return false;
+    if (!juego || !juego_esta_preparado(juego) || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) 
+        return false;
+    
     return juego->cuadrilla->celdas[indice_carta].visible;
 }
 
 struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_carta) {
-    if (!juego || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) return NULL;
+    if (!juego || !juego_esta_preparado(juego) || indice_carta < 0 || indice_carta >= TOTAL_CARTAS) 
+        return NULL;
+    
     return juego->cuadrilla->celdas[indice_carta].pokemon;
 }
 
@@ -635,6 +683,8 @@ lista_t* juego_obtener_historial_jugador(juego_t* juego, int jugador) {
 }
 
 void juego_destruir(juego_t* juego){
+    if (!juego) return;
+
     tp1_destruir(juego->pokedex);
     free(juego->cuadrilla->celdas);
     free(juego->cuadrilla);

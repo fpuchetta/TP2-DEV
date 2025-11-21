@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     // FALTA EJECUTAR POR CSV POR PARAMETRO.
     //
     //
-    tp2_t *tp2=tp2_crear("normal.csv");
+    tp2_t *tp2=tp2_crear("ejemplos/pokedex.csv");
     if (!tp2){
         printf("Error al crear el tp2\n");
         return -1;

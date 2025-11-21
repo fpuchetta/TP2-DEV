@@ -211,6 +211,22 @@ bool validar_formato(const char *linea, int *num1, int *num2) {
     return parsear_dos_numeros(linea,num1,num2);
 }
 
+
+void mostrar_mensaje_error(estado_jugada_t resultado) {
+    switch (resultado) {
+        case JUGADA_CARTA_YA_DESCUBIERTA:
+            printf("Error: Una de las cartas ya fue descubierta. Intente nuevamente.\n");
+            break;
+        case JUGADA_MISMA_CARTA:
+            printf("Error: No puede seleccionar la misma carta dos veces. Intente nuevamente.\n");
+            break;
+        case JUGADA_CARTA_INVALIDA:
+        default:
+            printf("Error: Por favor elija carta dentro de los limites.\n");
+            break;
+    }
+}
+/*
 bool pedir_y_validar_par_cartas( int jugador_actual, int *idx1, int *idx2) {
     const char *color_jugador = (jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
     printf("%sJugador %i%s ingrese dos cartas separadas por espacio: ", 
@@ -236,24 +252,10 @@ bool pedir_y_validar_par_cartas( int jugador_actual, int *idx1, int *idx2) {
     return true;
 }
 
-void mostrar_mensaje_error(estado_jugada_t resultado) {
-    switch (resultado) {
-        case JUGADA_CARTA_YA_DESCUBIERTA:
-            printf("Error: Una de las cartas ya fue descubierta. Intente nuevamente.\n");
-            break;
-        case JUGADA_MISMA_CARTA:
-            printf("Error: No puede seleccionar la misma carta dos veces. Intente nuevamente.\n");
-            break;
-        case JUGADA_CARTA_INVALIDA:
-        default:
-            printf("Error: Por favor elija carta dentro de los limites.\n");
-            break;
-    }
-}
-
 bool procesar_turno(juego_t *juego) {
     if (!juego) return false;
-
+    
+    limpiar_pantalla();
     mostrar_layout_completo(juego);
 
     estado_jugada_t resultado=JUGADA_VALIDA;
@@ -268,6 +270,7 @@ bool procesar_turno(juego_t *juego) {
         if (resultado != JUGADA_VALIDA) {
             mostrar_mensaje_error(resultado);
         }else{
+            limpiar_pantalla();
             mostrar_layout_completo(juego);
             printf("Mostrando cartas seleccionadas...\n\n");
             sleep(2);
@@ -280,6 +283,7 @@ bool procesar_turno(juego_t *juego) {
         }
     }
     
+    limpiar_pantalla();
     mostrar_layout_completo(juego);
 
     if (resultado == JUGADA_FORMO_PAR)
@@ -309,6 +313,138 @@ bool juego_interactivo(juego_t *juego) {
     limpiar_pantalla();
     mostrar_resultado_final(juego);
     esperar_enter();
+    return terminado;
+}
+*/
+
+char *leer_linea_dinamica_fgets() {
+    size_t capacidad = 16;
+    char *buffer = malloc(capacidad);
+    if (!buffer) return NULL;
+    
+    buffer[0] = '\0';
+    size_t len = 0;
+    
+    while (fgets(buffer + len, (int)(capacidad - len), stdin) != NULL) {
+        len = strlen(buffer);
+        
+        // Si la línea terminó con newline, salir
+        if (len > 0 && buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0';
+            return buffer;
+        }
+        
+        // Si no, redimensionar y seguir leyendo
+        capacidad *= 2;
+        char *nuevo = realloc(buffer, capacidad);
+        if (!nuevo) {
+            free(buffer);
+            return NULL;
+        }
+        buffer = nuevo;
+    }
+    
+    free(buffer);
+    return NULL;
+}
+
+
+bool pedir_y_validar_par_cartas(int jugador_actual, int *idx1, int *idx2) {
+    const char *color_jugador = (jugador_actual == 0) ? COLOR_JUGADOR_1 : COLOR_JUGADOR_2;
+    printf("%sJugador %i%s ingrese dos cartas separadas por espacio: ", 
+           color_jugador, jugador_actual + 1, ANSI_COLOR_RESET);
+    fflush(stdout);
+    
+    char *linea = leer_linea_dinamica_fgets();
+    if (!linea) return false;
+    
+    int num1, num2;
+    bool formato_valido = parsear_dos_numeros(linea, &num1, &num2);
+    
+    if (!formato_valido) {
+        *idx1 = -1;
+        *idx2 = -1;
+        printf("Error: Formato incorrecto. Use: numero espacio numero\n");
+    } else {
+        *idx1 = num1 - 1;
+        *idx2 = num2 - 1;
+    }
+    
+    free(linea);
+    return true;
+}
+
+void pausa_segura() {
+    printf("Presione ENTER para continuar...");
+    fflush(stdout);
+    
+    // Usar la MISMA función de lectura dinámica
+    char *linea = leer_linea_dinamica_fgets();
+    if (linea) {
+        free(linea);
+    }
+}
+
+// FLUJO COMPLETO
+bool procesar_turno(juego_t *juego) {
+    limpiar_pantalla();
+    mostrar_layout_completo(juego);
+
+    estado_jugada_t resultado = JUGADA_VALIDA;
+    bool jugada_valida = false;
+    int idx1, idx2;
+    
+    while (!jugada_valida) {
+        if (!pedir_y_validar_par_cartas(juego_obtener_jugador_actual(juego), &idx1, &idx2)) {
+            return false;
+        }
+        
+        resultado = juego_validar_jugada(juego, idx1, idx2);
+        if (resultado != JUGADA_VALIDA) {
+            mostrar_mensaje_error(resultado);
+        } else {
+            limpiar_pantalla();
+            mostrar_layout_completo(juego);
+            printf("Mostrando cartas seleccionadas...\n\n");
+            
+            pausa_segura(); // ← USA LECTURA DINÁMICA
+
+            resultado = juego_ejecutar_jugada(juego, idx1, idx2);
+            jugada_valida = true;
+        }
+    }
+    
+    limpiar_pantalla();
+    mostrar_layout_completo(juego);
+
+    if (resultado == JUGADA_FORMO_PAR)
+        printf("¡Acierto! Punto para el jugador actual.\n");
+    else
+        printf("No es un acierto. Turno del siguiente jugador.\n");
+    
+    //pausa_segura(); // ← USA LECTURA DINÁMICA
+    return true;
+}
+
+bool juego_interactivo(juego_t *juego) {
+    if (!juego) return false;
+
+    bool terminado = false;
+    while (!terminado) {
+        if (!procesar_turno(juego)) {
+            return false;
+        }
+
+        if (juego_terminado(juego)){
+            terminado=true;
+            printf("¡Juego terminado!\n");
+        }
+        pausa_segura();
+    }
+
+    limpiar_pantalla();
+    mostrar_resultado_final(juego);
+    pausa_segura();
     return terminado;
 }
 

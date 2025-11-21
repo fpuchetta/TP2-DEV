@@ -221,7 +221,6 @@ bool menu_existe_opcion(menu_t *menu, char tecla){
 opcion_t *opcion_crear(const char *nombre, char tecla, opcion_tipo_t tipo, menu_accion_t accion, menu_t* submenu){
     if (!nombre) return NULL;
 
-    // Validar coherencia
     if (tipo == OPCION_ACCION && !accion)
         return NULL;
 
@@ -437,10 +436,59 @@ menu_t *menu_sacar_submenu(menu_t *padre, char tecla) {
 
     padre->cant_submenus--;
     
-    return submenu;  // Usuario decide si destruirlo o reusarlo
+    return submenu;
 }
 
-// Creación idéntica a tu inicialización
+/*
+    Pre: -
+
+    Post: Libera toda la memoria reservada para un menu de tipo raiz.
+*/
+void destruir_menu_simple(menu_t *menu){
+    if (!menu) return;
+
+    if (menu->opciones){
+        hash_destruir_todo(menu->opciones, menu_destruir_opcion);
+    }
+
+    while (cola_cantidad(menu->estilos) != 0) {
+        estilo_t *e = cola_desencolar(menu->estilos);
+        free(e);
+    }
+    cola_destruir(menu->estilos);
+    free(menu->titulo);
+    free(menu);
+}
+
+void menu_destruir(menu_t *menu){
+    destruir_menu_simple(menu);
+}
+
+/*
+    Pre: El valor pasado por parametro no debe ser NULL.
+
+    Post: Libera recursivamente la memoria de un menu y sus submenus
+*/
+bool destruir_submenus_cb(char *clave, void *valor, void *ctx){
+    opcion_t *op = valor;
+
+    if (op->tipo == OPCION_SUBMENU && op->submenu){
+        menu_destruir_todo(op->submenu);
+    }
+
+    return true;
+}
+
+void menu_destruir_todo(menu_t *menu_base){
+    if (!menu_base) return;
+
+    if (menu_base->opciones){
+        hash_iterar(menu_base->opciones, destruir_submenus_cb, NULL);
+    }
+
+    destruir_menu_simple(menu_base);
+}
+
 menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data) {
     if (!menu_base) return NULL;
     
@@ -462,7 +510,6 @@ menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data) {
     return nav;
 }
 
-// Réplica de tu actualizar_estilo_actual
 bool menu_navegador_actualizar_estilo(menu_navegador_t *nav) {
     menu_t *m = nav->menu_actual;
     
@@ -523,7 +570,6 @@ menu_navegacion_estado_t menu_navegador_manejar_opcion_normal(menu_navegador_t *
     return MENU_NAVEGACION_CONTINUAR;
 }
 
-// Función principal - procesa tecla como en tu código
 menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla) {
     if (!nav) return MENU_NAVEGACION_ERROR;
     if (nav->salir) return MENU_NAVEGACION_TERMINAR;
@@ -543,7 +589,6 @@ menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, ch
     return nav->salir ? MENU_NAVEGACION_TERMINAR : MENU_NAVEGACION_CONTINUAR;
 }
 
-// Réplica de tu menu_mostrar
 void menu_navegador_mostrar(const menu_navegador_t *nav) {
     if (!nav || !nav->menu_actual) return;
 
@@ -581,54 +626,4 @@ void menu_navegador_destruir(menu_navegador_t *nav) {
         pila_destruir(nav->stack_menus);
         free(nav);
     }
-}
-
-/*
-    Pre: -
-
-    Post: Libera toda la memoria reservada para un menu de tipo raiz.
-*/
-void destruir_menu_simple(menu_t *menu){
-    if (!menu) return;
-
-    if (menu->opciones){
-        hash_destruir_todo(menu->opciones, menu_destruir_opcion);
-    }
-
-    while (cola_cantidad(menu->estilos) != 0) {
-        estilo_t *e = cola_desencolar(menu->estilos);
-        free(e);
-    }
-    cola_destruir(menu->estilos);
-    free(menu->titulo);
-    free(menu);
-}
-
-void menu_destruir(menu_t *menu){
-    destruir_menu_simple(menu);
-}
-
-/*
-    Pre: El valor pasado por parametro no debe ser NULL.
-
-    Post: Libera recursivamente la memoria de un menu y sus submenus
-*/
-bool destruir_submenus_cb(char *clave, void *valor, void *ctx){
-    opcion_t *op = valor;
-
-    if (op->tipo == OPCION_SUBMENU && op->submenu){
-        menu_destruir_todo(op->submenu);
-    }
-
-    return true;
-}
-
-void menu_destruir_todo(menu_t *menu_base){
-    if (!menu_base) return;
-
-    if (menu_base->opciones){
-        hash_iterar(menu_base->opciones, destruir_submenus_cb, NULL);
-    }
-
-    destruir_menu_simple(menu_base);
 }

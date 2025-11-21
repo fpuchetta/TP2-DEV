@@ -46,6 +46,8 @@ juego_t *juego_crear(const char *archivo);
     
     Post: Prepara el juego con la semilla especificada.
           Devuelve true si se preparó correctamente, false en caso de error.
+          Si el juego ya esta empezado reinicia el juego al estado inicial con la semilla especificada.
+          Devuelve true si se reinició correctamente, false en caso de error.
 */
 bool juego_preparar(juego_t *juego, unsigned int semilla);
 
@@ -95,8 +97,6 @@ bool juego_establecer_pokedex(juego_t *juego, tp1_t *nueva_pokedex);
     Post: Devuelve true si el juego tiene una pokedex cargada.
 */
 bool juego_tiene_pokedex(juego_t *juego);
-
-//////////////////////////////////////////
 
 /*
     Pre: juego no debe ser NULL.
@@ -159,9 +159,14 @@ struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_car
 */
 void mostrar_resultado_final(juego_t* juego);
 
-//////////////
+/*
+    Pre: -
+
+    Post: imprime el layout del juego por pantalla,
+          el juego debe haber sido creado previamente con juego_crear.
+*/
 void mostrar_layout_completo(juego_t *juego);
-//////////////
+
 /*
     Pre: juego no debe ser NULL.
     

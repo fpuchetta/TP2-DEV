@@ -6,7 +6,7 @@
 
 // Helper para crear pokedex mínima para testing
 tp1_t* crear_pokedex_minima() {
-    tp1_t* pokedex = tp1_leer_archivo("normal.csv");
+    tp1_t* pokedex = tp1_leer_archivo("ejemplos/pokedex.csv");
     // Necesitamos al menos 9 pokémones únicos para las 9 parejas
     // (asumiendo que tu tp1 tiene funciones para agregar)
     return pokedex;
@@ -36,7 +36,7 @@ void test_creacion_y_destruccion() {
 void test_preparacion_y_reinicio() {
     pa2m_nuevo_grupo("Pruebas de Preparación y Reinicio");
     
-    juego_t* juego = juego_crear("normal.csv");
+    juego_t* juego = juego_crear("ejemplos/pokedex.csv");
     
     // Test 1: Preparar juego con semilla
     bool preparado = juego_preparar(juego, 1234);
@@ -60,7 +60,7 @@ void test_preparacion_y_reinicio() {
 void test_validacion_jugadas() {
     pa2m_nuevo_grupo("Pruebas de Validación de Jugadas");
     
-    juego_t* juego = juego_crear(NULL);
+    juego_t* juego = juego_crear("ejemplos/pokedex.csv");
     juego_preparar(juego, 42);
     
     // Test 1: Jugada válida
@@ -91,7 +91,7 @@ void test_validacion_jugadas() {
 void test_ejecucion_jugadas() {
     pa2m_nuevo_grupo("Pruebas de Ejecución de Jugadas");
     
-    juego_t* juego = juego_crear("normal.csv");
+    juego_t* juego = juego_crear("ejemplos/pokedex.csv");
     juego_preparar(juego, 123); // Semilla fija para reproducibilidad
     
     // Test 1: Ejecutar jugada válida
@@ -164,14 +164,14 @@ void test_pokedex() {
     pa2m_afirmar(!juego_tiene_pokedex(juego), "juego_tiene_pokedex devuelve false sin pokedex");
     
     // Test 2: Establecer pokedex
-    tp1_t* pokedex_test = tp1_leer_archivo("normal.csv");
+    tp1_t* pokedex_test = tp1_leer_archivo("ejemplos/pokedex.csv");
     bool establecida = juego_establecer_pokedex(juego, pokedex_test);
     pa2m_afirmar(establecida, "Pokedex se establece correctamente");
     pa2m_afirmar(juego_tiene_pokedex(juego), "juego_tiene_pokedex devuelve true con pokedex");
     pa2m_afirmar(juego_obtener_pokedex(juego) == pokedex_test, "Pokedex obtenida es la correcta");
     
     // Test 3: Reemplazar pokedex
-    tp1_t* nueva_pokedex = tp1_leer_archivo("normal.csv");
+    tp1_t* nueva_pokedex = tp1_leer_archivo("ejemplos/pokedex.csv");
     establecida = juego_establecer_pokedex(juego, nueva_pokedex);
     pa2m_afirmar(establecida, "Pokedex se reemplaza correctamente");
     
@@ -182,7 +182,7 @@ void test_pokedex() {
 void test_juego_completo_simulado() {
     pa2m_nuevo_grupo("Pruebas de Juego Completo Simulado");
     
-    juego_t* juego = juego_crear("normal.csv");
+    juego_t* juego = juego_crear("ejemplos/pokedex.csv");
     juego_preparar(juego, 123);
     
     // Test 1: Simular juego completo mediante jugadas automáticas

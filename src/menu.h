@@ -9,6 +9,8 @@
 #define MENU_TECLA_ESTILOS 'E'
 
 typedef struct menu menu_t;
+typedef struct menu_navegador menu_navegador_t;
+
 typedef bool (*menu_accion_t)(void *user_data);
 typedef void (*menu_mostrar_opciones_t)(char tecla, char *nombre);
 typedef void (*menu_mostrar_titulo_t)(char *titulo);
@@ -113,7 +115,6 @@ bool menu_tiene_estilos(menu_t *menu);
 */
 bool menu_existe_opcion(menu_t *menu, char tecla);
 
-
 /*
     Pre: menu no debe ser NULL.
     
@@ -166,25 +167,13 @@ void menu_destruir(menu_t *menu);
 */
 void menu_destruir_todo(menu_t *menu_base);
 
-////////////////////////////////////////////
 
-typedef struct menu_navegador menu_navegador_t;
-
-// Réplica exacta de tu menu_running_t pero como tipo opaco
-
-// Resultados que replican tu comportamiento
-
-
-// Creación idéntica a tu inicialización
 menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data);
 
-// Función principal - procesa tecla como en tu código
 menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla);
 
-// Réplica de tu menu_mostrar
 void menu_navegador_mostrar(const menu_navegador_t *nav);
 
-// Consultas para obtener estado
 menu_t *menu_navegador_obtener_actual(const menu_navegador_t *nav);
 
 bool menu_navegador_esta_terminado(const menu_navegador_t *nav);
