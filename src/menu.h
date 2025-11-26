@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#define MENU_TECLA_SALIR  'Q'
+#define MENU_TECLA_SALIR 'Q'
 #define MENU_TECLA_VOLVER 'A'
 #define MENU_TECLA_ESTILOS 'E'
 
@@ -16,9 +16,9 @@ typedef void (*menu_mostrar_opciones_t)(char tecla, char *nombre);
 typedef void (*menu_mostrar_titulo_t)(char *titulo);
 
 typedef enum {
-    MENU_NAVEGACION_CONTINUAR,
-    MENU_NAVEGACION_TERMINAR,
-    MENU_NAVEGACION_ERROR
+	MENU_NAVEGACION_CONTINUAR,
+	MENU_NAVEGACION_TERMINAR,
+	MENU_NAVEGACION_ERROR
 } menu_navegacion_estado_t;
 
 /*
@@ -28,7 +28,9 @@ typedef enum {
           inicializados.
           Devuelve NULL en caso de error.
 */
-menu_t *menu_crear_base(const char *titulo, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo);
+menu_t *menu_crear_base(const char *titulo,
+			menu_mostrar_opciones_t estilo_opciones,
+			menu_mostrar_titulo_t estilo_titulo);
 
 /*
     Pre: -
@@ -45,7 +47,8 @@ menu_t *menu_crear_submenu(menu_t *padre, char tecla, const char *nombre);
     Post: Devuelve true si se pudo agregar la accion correspondiente al menu pasado por parametro.
           Devuelve false en caso de error.
 */
-bool menu_agregar_accion(menu_t *menu, char tecla, const char *nombre, menu_accion_t accion);
+bool menu_agregar_accion(menu_t *menu, char tecla, const char *nombre,
+			 menu_accion_t accion);
 
 /*
     Pre: -
@@ -53,12 +56,13 @@ bool menu_agregar_accion(menu_t *menu, char tecla, const char *nombre, menu_acci
     Post: Devuelve true si se pudo agregar el estilo al menu pasado por parametro.
           Devuelve false en caso de error.
 */
-bool menu_agregar_estilo(menu_t* menu, menu_mostrar_opciones_t estilo_opciones, menu_mostrar_titulo_t estilo_titulo);
+bool menu_agregar_estilo(menu_t *menu, menu_mostrar_opciones_t estilo_opciones,
+			 menu_mostrar_titulo_t estilo_titulo);
 
 /*
     Pre: -
     
-    Post: Devuelve el título del menu.
+    Post: Devuelve el titulo del menu.
 */
 const char *menu_obtener_titulo(menu_t *menu);
 
@@ -118,27 +122,18 @@ bool menu_existe_opcion(menu_t *menu, char tecla);
 /*
     Pre: menu no debe ser NULL.
     
-    Post: Devuelve el nombre de la opción asociada a una tecla.
+    Post: Devuelve el nombre de la opcion asociada a una tecla.
           Devuelve NULL si no existe.
 */
 const char *menu_obtener_nombre_opcion(const menu_t *menu, char tecla);
 
 /*
-    Pre: -
-
-    Post: Inicializa los campos para correr un menu y lo ejecuta.
-          Devuelve true si se termino de ejecutar correctamente.
-          Devuelve false si se termino de ejecutar erroneamente.
-*/
-bool menu_ejecutar(menu_t *menu_base, void *user_data);
-
-/*
     Pre: menu no debe ser NULL.
     
-    Post: Elimina la acción asociada a la tecla del menu.
-          Libera la memoria de la opción eliminada.
-          Devuelve true si existía y era una acción.
-          Devuelve false si no existía, era submenu o hubo error.
+    Post: Elimina la accion asociada a la tecla del menu.
+          Libera la memoria de la opcion eliminada.
+          Devuelve true si existia y era una accion.
+          Devuelve false si no existia, era submenu o hubo error.
 */
 bool menu_sacar_accion(menu_t *menu, char tecla);
 
@@ -147,9 +142,9 @@ bool menu_sacar_accion(menu_t *menu, char tecla);
     
     Post: Elimina el submenu asociado a la tecla del menu padre.
           Devuelve el submenu eliminado.
-          Devuelve NULL si no existía, era acción o hubo error.
+          Devuelve NULL si no existia, era accion o hubo error.
 */
-menu_t *menu_sacar_submenu(menu_t* padre, char tecla);
+menu_t *menu_sacar_submenu(menu_t *padre, char tecla);
 
 /*
     Pre: -
@@ -167,10 +162,10 @@ void menu_destruir(menu_t *menu);
 */
 void menu_destruir_todo(menu_t *menu_base);
 
-
 menu_navegador_t *menu_navegador_crear(menu_t *menu_base, void *user_data);
 
-menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav, char tecla);
+menu_navegacion_estado_t menu_navegador_procesar_tecla(menu_navegador_t *nav,
+						       char tecla);
 
 void menu_navegador_mostrar(const menu_navegador_t *nav);
 

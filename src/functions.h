@@ -167,7 +167,6 @@ void esperar_enter();
 */
 int string_a_int(char *linea);
 
-
 /*
 	Pre: -
 

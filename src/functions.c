@@ -215,117 +215,128 @@ int diferencia_pokemones(tp1_t *tp, int argc, char **argv)
 	return operacion_con_tps(tp, otro_tp, csv_resultado, tp1_diferencia);
 }
 
-void limpiar_pantalla(){
-    printf(ANSI_CLEAR_SCREEN ANSI_CURSOR_HOME ANSI_CLEAR_SCROLLBACK);
-    fflush(stdout);
+void limpiar_pantalla()
+{
+	printf(ANSI_CLEAR_SCREEN ANSI_CURSOR_HOME ANSI_CLEAR_SCROLLBACK);
+	fflush(stdout);
 }
 
-void limpiar_buffer(){
-    int ch = getchar();
-    while (ch != '\n' && ch != EOF){
-        ch = getchar();
-    }
+void limpiar_buffer()
+{
+	int ch = getchar();
+	while (ch != '\n' && ch != EOF) {
+		ch = getchar();
+	}
 }
 
-void esperar_enter(){
-    int c;
+void esperar_enter()
+{
+	printf("Presione ENTER para continuar...");
+	fflush(stdout);
 
-    printf("\n\nPresione ENTER para volver al menú...");
-    fflush(stdout);
-    while ((c = getchar()) != '\n' && c != EOF) {}
+	char *linea = leer_linea_dinamica();
+	if (linea) {
+		free(linea);
+	}
 }
 
-int string_a_int(char *linea){
-    char *endptr = NULL;
-    long id_long = strtol(linea, &endptr, 10);
+int string_a_int(char *linea)
+{
+	char *endptr = NULL;
+	long id_long = strtol(linea, &endptr, 10);
 
-    if (endptr == linea) {
-        printf("Entrada inválida: no se reconoció un número.\n");
-        return -1;
-    }
+	if (endptr == linea) {
+		printf("Entrada invalida: no se reconoció un numero.\n");
+		return -1;
+	}
 
-    if (id_long < INT_MIN || id_long > INT_MAX) {
-        printf("ID fuera de rango.\n");
-        return -1;
-    }
-    return (int)id_long;
+	if (id_long < INT_MIN || id_long > INT_MAX) {
+		printf("ID fuera de rango.\n");
+		return -1;
+	}
+	return (int)id_long;
 }
 
-char *leer_linea_dinamica() {
-    size_t cap = 4;
-    size_t len = 0;
-    char *buffer = malloc(cap);
-    if (!buffer) return NULL;
+char *leer_linea_dinamica()
+{
+	size_t cap = 4;
+	size_t len = 0;
+	char *buffer = malloc(cap);
+	if (!buffer)
+		return NULL;
 
-    int c = 0;
+	int c = 0;
 
-    while ((c = getchar()) != '\n' && c != EOF) {
+	while ((c = getchar()) != '\n' && c != EOF) {
+		if (len + 1 >= cap) {
+			cap *= 2;
+			char *nuevo = realloc(buffer, cap);
+			if (!nuevo) {
+				free(buffer);
+				return NULL;
+			}
+			buffer = nuevo;
+		}
 
-        // si hace falta crecer:
-        if (len + 1 >= cap) {
-            cap *= 2;
-            char *nuevo = realloc(buffer, cap);
-            if (!nuevo) {
-                free(buffer);
-                return NULL;
-            }
-            buffer = nuevo;
-        }
+		buffer[len++] = (char)c;
+	}
 
-        buffer[len++] = (char)c;
-    }
-
-    buffer[len] = '\0';
-    return buffer;
+	buffer[len] = '\0';
+	return buffer;
 }
 
-bool separar_dos_tokens(const char *linea, char **token1, char **token2) {
-    size_t i = 0;
-    while (linea[i] != ' ' && linea[i] != '\0')
-        i++;
-    
-    if (linea[i] != ' ' || i == 0) return false;
+bool separar_dos_tokens(const char *linea, char **token1, char **token2)
+{
+	size_t i = 0;
+	while (linea[i] != ' ' && linea[i] != '\0')
+		i++;
 
-    *token1 = malloc(i + 1);
-    if (!*token1) return false;
-    
-    strncpy(*token1, linea, i);
-    (*token1)[i] = '\0';
-    
-    size_t j = i + 1;
-    while (linea[j] == ' ') j++;
-    if (linea[j] == '\0') {
-        free(*token1);
-        return false;
-    }
+	if (linea[i] != ' ' || i == 0)
+		return false;
 
-    *token2 = mi_strdup(&linea[j]);
-    if (!*token2) {
-        free(*token1);
-        return false;
-    }
-    
-    return true;
+	*token1 = malloc(i + 1);
+	if (!*token1)
+		return false;
+
+	strncpy(*token1, linea, i);
+	(*token1)[i] = '\0';
+
+	size_t j = i + 1;
+	while (linea[j] == ' ')
+		j++;
+	if (linea[j] == '\0') {
+		free(*token1);
+		return false;
+	}
+
+	*token2 = mi_strdup(&linea[j]);
+	if (!*token2) {
+		free(*token1);
+		return false;
+	}
+
+	return true;
 }
 
-bool parsear_dos_numeros(const char *linea, int *num1, int *num2) {
-    char *token1 = NULL;
-    char *token2 = NULL;
-    bool exito = false;
-    
-    if (separar_dos_tokens(linea, &token1, &token2)) {
-        int n1 = string_a_int(token1);
-        int n2 = string_a_int(token2);
-        
-        if (n1 != -1 && n2 != -1) {
-            *num1 = n1;
-            *num2 = n2;
-            exito = true;
-        }
+bool parsear_dos_numeros(const char *linea, int *num1, int *num2)
+{
+	char *token1 = NULL;
+	char *token2 = NULL;
+	bool exito = false;
 
-        free(token1);
-        free(token2);
-    }
-    
-    return exito;
+	if (separar_dos_tokens(linea, &token1, &token2)) {
+		int n1 = string_a_int(token1);
+		int n2 = string_a_int(token2);
+
+		if (n1 != -1 && n2 != -1) {
+			*num1 = n1;
+			*num2 = n2;
+			exito = true;
+		}
+
+		free(token1);
+		free(token2);
+	}
+
+	return exito;
 }

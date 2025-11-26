@@ -23,14 +23,14 @@
 
 typedef struct juego juego_t;
 
-typedef enum estado_jugada{
-    JUGADA_ERROR_MEMORIA =-1,
-    JUGADA_VALIDA,
-    JUGADA_CARTA_INVALIDA,
-    JUGADA_CARTA_YA_DESCUBIERTA,
-    JUGADA_MISMA_CARTA,
-    JUGADA_FORMO_PAR,
-    JUGADA_NO_FORMO_PAR
+typedef enum estado_jugada {
+	JUGADA_ERROR_MEMORIA = -1,
+	JUGADA_VALIDA,
+	JUGADA_CARTA_INVALIDA,
+	JUGADA_CARTA_YA_DESCUBIERTA,
+	JUGADA_MISMA_CARTA,
+	JUGADA_FORMO_PAR,
+	JUGADA_NO_FORMO_PAR
 } estado_jugada_t;
 
 /*
@@ -133,14 +133,14 @@ int juego_obtener_puntaje(const juego_t *juego, int jugador);
 /*
     Pre: juego no debe ser NULL.
 
-    Post: Devuelve true si la carta está descubierta.
+    Post: Devuelve true si la carta esta descubierta.
 */
 bool juego_es_carta_descubierta(const juego_t *juego, int indice_carta);
 
 /*
     Pre: juego no debe ser NULL.
 
-    Post: Devuelve true si la carta está visible temporalmente.
+    Post: Devuelve true si la carta esta visible temporalmente.
 */
 bool juego_es_carta_visible(const juego_t *juego, int indice_carta);
 
@@ -149,7 +149,8 @@ bool juego_es_carta_visible(const juego_t *juego, int indice_carta);
     
     Post: Devuelve el pokemon asociado a una carta (NULL si no tiene).
 */
-struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_carta);
+struct pokemon *juego_obtener_pokemon_carta(const juego_t *juego,
+					    int indice_carta);
 
 /*
     Pre: el juego no debe ser NULL.
@@ -157,7 +158,7 @@ struct pokemon* juego_obtener_pokemon_carta(const juego_t *juego, int indice_car
     Post: Imprime la informacion del juego una vez terminado.
           Si el juego no termino no imprime nada.
 */
-void mostrar_resultado_final(juego_t* juego);
+void mostrar_resultado_final(juego_t *juego);
 
 /*
     Pre: -
